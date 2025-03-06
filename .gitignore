@@ -2,3 +2,5 @@
 .idea/*
 *.iml
 
+python-client
+python-async-client
