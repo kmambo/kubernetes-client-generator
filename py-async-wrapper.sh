@@ -61,8 +61,8 @@ for tag in ${tags[@]}; do
     rm -rf "$DST/test"
   fi
 
-  cp -rf $SRC/* $DST/*
-  cp -rf $SRC/.* $DST/.*
+  cp -rf $SRC/* $DST/
+  cp -rf $SRC/.* $DST/
 
   gitops $tag
   popd
