@@ -17,7 +17,7 @@
 set -o errexit
 set -o nounset
 set -o pipefail
-set -x
+#set -x
 
 ARGC=$#
 
