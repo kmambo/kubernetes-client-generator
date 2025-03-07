@@ -31,8 +31,7 @@ export KUBERNETES_BRANCH="master"
 export PACKAGE_NAME="client"
 export OPENAPI_GENERATOR_COMMIT=v7.11.0
 export CLIENT_VERSION="${tag:1}" 
-
-    EOF
+EOF
 
     popd
 }
@@ -40,7 +39,10 @@ export CLIENT_VERSION="${tag:1}"
 tags=( v32.0.1 v31.0.0 v30.1.0 v29.1.0 )
 for tag in ${tags[@]}; do
   echo $tag
+  set_py_settings $tag
+  exit
   pushd $DIR
+  
   ./openapi/python-asyncio.sh python-async-client python-settings.sh
 
   if [ -d "$DST/client" ]; then
