@@ -42,13 +42,29 @@ EOF
     popd
 }
 
+init_py() {
+  pushd $DST/kubernetes_asyncio
+  local tag=$1
+  local version="${tag:1}"
+  pushd $DST/kubernetes_asyncio
+  cat > __init__.py << EOF
+__project__ = 'kubernetes_asyncio'
+# The version is auto-updated. Please do not edit.
+__version__ = "$version"
+
+from . import client 
+
+EOF
+  popd
+}
+
 pyproject() {
     local tag=$1
     local version="${tag:1}"
     pushd $DST
     cat > pyproject.toml << EOF
 [project]
-name = "client"
+name = "kubernetes_asyncio_pydantic"
 version = "$version"
 description = "Kubernetes"
 requires-python = "^3.12"
@@ -59,11 +75,10 @@ license = "NoLicense"
 readme = "README.md"
 repository = "https://github.com/kubernetes-client/python"
 keywords = ["OpenAPI", "OpenAPI-Generator", "Kubernetes"]
-requires = [
-]
+dynamic = [ "dependencies" ]
 
 [tool.poetry]
-packages = [{include = "client", to="kubernetes.client"}]
+packages = [{include = "kubernetes_asyncio", to="kubernetes_asyncio_pydantic"}]
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">= 7.2.1"
@@ -165,28 +180,23 @@ for tag in ${tags[@]}; do
   
   ./openapi/python-asyncio.sh python-async-client python-settings.sh
 
-  if [ -d "$DST/client" ]; then
-    rm -rf "$DST/client"
-  fi
-
-  if [ -d "$DST/docs" ]; then
-    rm -rf "$DST/docs"
-  fi
-
-  if [ -d "$DST/test" ]; then
-    rm -rf "$DST/test"
-  fi
-
   rm -f $SRC/swagger.json
   rm -f $SRC/swagger.json.unprocessed
+
   if [ ! -d "$SRC/.git" ]; then
       rm -rf "$SRC/.git"
   fi
-  cp -rf $SRC/* $DST/
-  cp -rf $SRC/.* $DST/
+
+  mkdir -p $DST/kubernetes_asyncio
+  mv $SRC/client $DST/kubernetes_asyncio/
+  cp -rf $SRC/* $DST
+  cp -rf $SRC/.* $DST
+  
+  init_py $tag
   pyproject $tag
   gitops $tag
   build_package
   popd
+  exit
 done
 
