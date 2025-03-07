@@ -38,6 +38,9 @@ EOF
 
 if [ ! -d "$DST"]; then
     mkdir -p "$DST"
+    pushd "$DST"
+    git init
+    popd
 fi
 
 tags=( v32.0.1 v31.0.0 v30.1.0 v29.1.0 )
