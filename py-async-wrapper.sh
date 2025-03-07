@@ -69,9 +69,9 @@ version = "$version"
 description = "Kubernetes"
 requires-python = "^3.12"
 authors = [
-    {name = "Partho Bhowmick",email = "p.s.bhowmick@gmail.com"}
+    {name = "Partho Bhowmick",email = "partho.bhowmick@icloud.com"}
 ]
-license = "NoLicense"
+license = "MIT"
 readme = "README.md"
 repository = "https://github.com/kubernetes-client/python"
 keywords = ["OpenAPI", "OpenAPI-Generator", "Kubernetes"]
@@ -158,6 +158,7 @@ poetry add "urllib3 (>=1.25.3,<3.0.0)" \
     "pydantic (>=2,<3)" \
     "typing-extensions (>=4.7.1)"
 poetry lock
+poetry check
     popd
 }
 set -x
@@ -171,7 +172,7 @@ if [ ! -d "$DST/.git" ]; then
 fi
 set +x
 
-tags=( v32.0.1 v31.0.0 v30.1.0 v29.1.0 )
+tags=( v31.0.0 v30.1.0 v29.1.0 ) # v32.0.1 
 for tag in ${tags[@]}; do
   echo $tag
   set_py_settings $tag
@@ -187,6 +188,9 @@ for tag in ${tags[@]}; do
       rm -rf "$SRC/.git"
   fi
 
+  if [ -d "$DST/kubernetes_asyncio" ]; then
+      rm -rf "$DST/kubernetes_asyncio" 
+  fi  
   mkdir -p $DST/kubernetes_asyncio
   mv $SRC/client $DST/kubernetes_asyncio/
   cp -rf $SRC/* $DST
@@ -197,6 +201,5 @@ for tag in ${tags[@]}; do
   gitops $tag
   build_package
   popd
-  exit
 done
 
