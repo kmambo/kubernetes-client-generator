@@ -36,11 +36,15 @@ EOF
     popd
 }
 
+if [ ! -d "$DST"]; then
+    mkdir -p "$DST"
+fi
+
 tags=( v32.0.1 v31.0.0 v30.1.0 v29.1.0 )
 for tag in ${tags[@]}; do
   echo $tag
   set_py_settings $tag
-  exit
+  
   pushd $DIR
   
   ./openapi/python-asyncio.sh python-async-client python-settings.sh
