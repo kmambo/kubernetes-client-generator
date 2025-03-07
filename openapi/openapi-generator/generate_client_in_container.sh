@@ -108,4 +108,5 @@ mkdir -p "${output_dir}/.openapi-generator"
 echo "Requested Commit/Tag : ${OPENAPI_GENERATOR_COMMIT}" > "${output_dir}/.openapi-generator/COMMIT"
 echo "Actual Commit        : ${OPENAPI_GENERATOR_COMMIT_ACTUAL}" >> "${output_dir}/.openapi-generator/COMMIT"
 
+rm -rf "${output_dir}/.git"
 echo "---Done."
