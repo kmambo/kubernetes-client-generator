@@ -67,7 +67,7 @@ pyproject() {
 name = "kubernetes_asyncio_pydantic"
 version = "$version"
 description = "Kubernetes"
-requires-python = "^3.12"
+requires-python = ">=3.12,<4.0"
 authors = [
     {name = "Partho Bhowmick",email = "partho.bhowmick@icloud.com"}
 ]
@@ -88,9 +88,12 @@ flake8 = ">= 4.0.0"
 types-python-dateutil = ">= 2.8.19.14"
 mypy = ">= 1.5"
 
+# [build-system]
+# requires = ["setuptools"]
+# build-backend = "setuptools.build_meta"
 [build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.pylint.'MESSAGES CONTROL']
 extension-pkg-whitelist = "pydantic"
@@ -172,7 +175,7 @@ if [ ! -d "$DST/.git" ]; then
 fi
 set +x
 
-tags=( v31.0.0 v30.1.0 v29.1.0 ) # v32.0.1 
+tags=( v32.0.1 v31.0.0 v30.1.0 v29.1.0 ) #
 for tag in ${tags[@]}; do
   echo $tag
   set_py_settings $tag

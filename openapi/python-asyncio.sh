@@ -59,21 +59,30 @@ echo "--- Patching generated code..."
 if [ ${PACKAGE_NAME} == "client" ]; then
 
   # Post-processing of the generated Python wrapper.
-  find "${OUTPUT_DIR}/test" -type f -name \*.py -exec ${SED} -i 's/\bclient/kubernetes_asyncio.client/g' {} +
-  find "${OUTPUT_DIR}" -path "${OUTPUT_DIR}/base" -prune -o -type f -a -name \*.md -exec ${SED} -i 's/\bclient/kubernetes_asyncio.client/g' {} +
-  find "${OUTPUT_DIR}" -path "${OUTPUT_DIR}/base" -prune -o -type f -a -name \*.md -exec ${SED} -i 's/kubernetes_asyncio.client-python/client-python/g' {} +
+  find "${OUTPUT_DIR}/test" -type f -name \*.py \
+    -exec ${SED} -i 's/\bclient/kubernetes_asyncio.client/g' {} +
+  find "${OUTPUT_DIR}" -path "${OUTPUT_DIR}/base" -prune -o -type f -a -name \*.md \
+    -exec ${SED} -i 's/\bclient/kubernetes_asyncio.client/g' {} +
+  find "${OUTPUT_DIR}" -path "${OUTPUT_DIR}/base" -prune -o -type f -a -name \*.md \
+    -exec ${SED} -i 's/kubernetes_asyncio.client-python/client-python/g' {} +
 
   # fix imports
-  find "${OUTPUT_DIR}/client/" -type f -name \*.py -exec ${SED} -i 's/import client\./import kubernetes_asyncio.client./g' {} +
-  find "${OUTPUT_DIR}/client/" -type f -name \*.py -exec ${SED} -i 's/from client/from kubernetes_asyncio.client/g' {} +
-  find "${OUTPUT_DIR}/client/" -type f -name \*.py -exec ${SED} -i 's/getattr(client\.models/getattr(kubernetes_asyncio.client.models/g' {} +
+  find "${OUTPUT_DIR}/client/" -type f -name \*.py \
+    -exec ${SED} -i 's/import client\./import kubernetes_asyncio.client./g' {} +
+  find "${OUTPUT_DIR}/client/" -type f -name \*.py \
+    -exec ${SED} -i 's/from client/from kubernetes_asyncio.client/g' {} +
+  find "${OUTPUT_DIR}/client/" -type f -name \*.py \
+    -exec ${SED} -i 's/getattr(client\.models/getattr(kubernetes_asyncio.client.models/g' {} +
 
 else
 
   # Post-processing of the generated Python wrapper.
-  find "${OUTPUT_DIR}/test" -type f -name \*.py -exec ${SED} -i "s/\\bclient/${PACKAGE_NAME}.client/g" {} +
-  find "${OUTPUT_DIR}" -path "${OUTPUT_DIR}/base" -prune -o -type f -a -name \*.md -exec ${SED} -i "s/\\bclient/${PACKAGE_NAME}.client/g" {} +
-  find "${OUTPUT_DIR}" -path "${OUTPUT_DIR}/base" -prune -o -type f -a -name \*.md -exec ${SED} -i "s/${PACKAGE_NAME}.client-python/client-python/g" {} +
+  find "${OUTPUT_DIR}/test" -type f -name \*.py \
+    -exec ${SED} -i "s/\\bclient/${PACKAGE_NAME}.client/g" {} +
+  find "${OUTPUT_DIR}" -path "${OUTPUT_DIR}/base" -prune -o -type f -a -name \*.md \
+    -exec ${SED} -i "s/\\bclient/${PACKAGE_NAME}.client/g" {} +
+  find "${OUTPUT_DIR}" -path "${OUTPUT_DIR}/base" -prune -o -type f -a -name \*.md \
+    -exec ${SED} -i "s/${PACKAGE_NAME}.client-python/client-python/g" {} +
 
 fi
 
