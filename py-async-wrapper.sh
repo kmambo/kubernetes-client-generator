@@ -1,5 +1,5 @@
 #!/usr/local/bin/bash
-set -euo pipefail
+set -euxo pipefail
 
 DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 echo "DIR=$DIR"
@@ -73,12 +73,12 @@ authors = [
 ]
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/kubernetes-client/python"
+repository = "https://github.com/kmambo/kubernetes-pydantic-asyncio-client"
 keywords = ["OpenAPI", "OpenAPI-Generator", "Kubernetes"]
 dynamic = [ "dependencies" ]
 
 [tool.poetry]
-packages = [{include = "kubernetes_asyncio", to="kubernetes_asyncio_pydantic"}]
+packages = [{include = "kubernetes_asyncio"}]
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">= 7.2.1"
@@ -164,7 +164,6 @@ poetry lock
 poetry check
     popd
 }
-set -x
 if [ ! -d "$DST" ]; then
     mkdir -p "$DST"
 fi
@@ -173,7 +172,6 @@ if [ ! -d "$DST/.git" ]; then
     git init
     popd
 fi
-set +x
 
 tags=( v32.0.1 v31.0.0 v30.1.0 v29.1.0 ) #
 for tag in ${tags[@]}; do
