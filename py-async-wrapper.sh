@@ -35,7 +35,7 @@ set_py_settings() {
     cat > python-settings.sh << EOF
 export KUBERNETES_BRANCH="master" 
 export PACKAGE_NAME="client"
-export OPENAPI_GENERATOR_COMMIT=v7.11.0
+export OPENAPI_GENERATOR_COMMIT=v7.13.0
 export CLIENT_VERSION="${tag:1}" 
 EOF
 
@@ -173,7 +173,7 @@ if [ ! -d "$DST/.git" ]; then
     popd
 fi
 
-tags=( v32.0.1 v31.0.0 v30.1.0 v29.1.0 ) #
+tags=( v32.0.1 ) #
 for tag in ${tags[@]}; do
   echo $tag
   set_py_settings $tag
