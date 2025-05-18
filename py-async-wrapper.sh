@@ -173,7 +173,7 @@ if [ ! -d "$DST/.git" ]; then
     popd
 fi
 
-tags=( v32.0.1 ) #
+tags=( v33.0.1 ) #
 for tag in ${tags[@]}; do
   echo $tag
   set_py_settings $tag
