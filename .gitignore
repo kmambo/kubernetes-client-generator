@@ -3,6 +3,5 @@
 *.iml
 .venv/
 *.diff
-python-asyncio-client/
 python-client/
-python-pydantic-client/
+/python-async-client/
