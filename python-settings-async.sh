@@ -1,0 +1,4 @@
+export KUBERNETES_BRANCH="master" 
+export PACKAGE_NAME="client"
+export OPENAPI_GENERATOR_COMMIT=v7.13.0
+export CLIENT_VERSION="33.0.1" 
