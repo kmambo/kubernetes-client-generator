@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
-
 import json
 import operator
 import os.path
@@ -76,6 +74,7 @@ def _has_property(prop_list, property_name):
     for prop in prop_list:
         if prop["name"] == property_name:
             return True
+    return None
 
 
 def remove_watch_operations(op, parent, operation_ids):
@@ -115,22 +114,26 @@ def strip_401_response(operation, _):
     if 'responses' in operation:
         operation['responses'].pop('401', None)
         if len(operation['responses']) == 0:
-            operation['responses']['200'] = { 'description': 'OK' }
+            operation['responses']['200'] = {'description': 'OK'}
 
 
 def transform_to_csharp_stream_response(operation, _):
-    if operation.get('operationId', None) == 'readNamespacedPodLog' or operation.get('x-kubernetes-action', None) == 'connect':
+    if operation.get('operationId', None) == 'readNamespacedPodLog' or operation.get('x-kubernetes-action',
+                                                                                     None) == 'connect':
         operation['responses']['200']["schema"] = {
             "type": "object",
-            "format": "file" ,
+            "format": "file",
         }
 
+
 def transform_to_csharp_consume_json(operation, _):
-    if operation.get('consumes', None) == ["*/*",] or operation.get('consumes', None) == "*/*":
+    if operation.get('consumes', None) == ["*/*", ] or operation.get('consumes', None) == "*/*":
         operation['consumes'] = ["application/json"]
+
 
 def transform_to_java_consume_json(operation, _):
     operation['consumes'] = ["application/json"]
+
 
 def strip_tags_from_operation_id(operation, _):
     operation_id = operation['operationId']
@@ -139,20 +142,29 @@ def strip_tags_from_operation_id(operation, _):
             operation_id = operation_id.replace(_to_camel_case(t), '')
         operation['operationId'] = operation_id
 
+
 def clean_crd_meta(spec):
     for k, v in spec['definitions'].items():
         if k.endswith('List'):
             print("Using built-in v1.ListMeta")
             v['properties']['metadata']['$ref'] = '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta'
             v['properties']['metadata'].pop('properties', None)
-        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta', '#/definitions/v1.ListMeta')
-        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta', '#/definitions/v1.ObjectMeta')
-        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta_v2', '#/definitions/v1.ObjectMeta')
-        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Status', '#/definitions/v1.Status')
-        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Status_v2', '#/definitions/v1.Status')
-        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Patch', '#/definitions/v1.Patch')
-        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.DeleteOptions', '#/definitions/v1.DeleteOptions')
-        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.DeleteOptions_v2', '#/definitions/v1.DeleteOptions')
+        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta',
+                                  '#/definitions/v1.ListMeta')
+        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta',
+                                  '#/definitions/v1.ObjectMeta')
+        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta_v2',
+                                  '#/definitions/v1.ObjectMeta')
+        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Status',
+                                  '#/definitions/v1.Status')
+        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Status_v2',
+                                  '#/definitions/v1.Status')
+        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Patch',
+                                  '#/definitions/v1.Patch')
+        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.DeleteOptions',
+                                  '#/definitions/v1.DeleteOptions')
+        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.DeleteOptions_v2',
+                                  '#/definitions/v1.DeleteOptions')
         find_rename_ref_recursive(spec, '#/definitions/io.k8s.api.autoscaling.v1.Scale', '#/definitions/v1.Scale')
         find_rename_ref_recursive(spec, '#/definitions/io.k8s.api.autoscaling.v1.Scale_v2', '#/definitions/v1.Scale')
 
@@ -165,10 +177,12 @@ def add_custom_objects_spec(spec):
             spec['paths'][path] = custom_objects_spec[path]
     return spec
 
+
 def add_codegen_request_body(operation, _):
     if 'parameters' in operation and len(operation['parameters']) > 0:
         if operation['parameters'][0].get('in') == 'body':
             operation['x-codegen-request-body-name'] = 'body'
+
 
 def drop_paths(spec):
     paths = {}
@@ -177,11 +191,12 @@ def drop_paths(spec):
         group_prefix_reversed = '.'.join(group_prefix.split('.')[::-1])
         for k, v in spec['paths'].items():
             if k.startswith('/apis/' + group_prefix_reversed):
-                print("Adding Custom Resource api path %s" %k)
+                print("Adding Custom Resource api path %s" % k)
                 paths[k] = v
             else:
-                print("Ignoring non Custom Resource api path %s" %k)
+                print("Ignoring non Custom Resource api path %s" % k)
     spec['paths'] = paths
+
 
 def fix_paths(spec):
     # see https://github.com/kubernetes/kubernetes/issues/117455
@@ -189,11 +204,11 @@ def fix_paths(spec):
     if '/.well-known/openid-configuration/' in paths:
         paths['/.well-known/openid-configuration'] = paths['/.well-known/openid-configuration/']
         del paths['/.well-known/openid-configuration/']
-    
 
     if '/openid/v1/jwks/' in paths:
         paths['/openid/v1/jwks'] = paths['/openid/v1/jwks/']
         del paths['/openid/v1/jwks/']
+
 
 def expand_parameters(spec):
     if 'parameters' not in spec:
@@ -216,12 +231,13 @@ def expand_parameters(spec):
                         spec['paths'][path][method]['parameters'][i] = param
     del spec['parameters']
 
+
 def process_swagger(spec, client_language, crd_mode=False):
     spec = add_custom_objects_spec(spec)
 
     if crd_mode:
         drop_paths(spec)
-    
+
     fix_paths(spec)
 
     expand_parameters(spec)
@@ -255,7 +271,6 @@ def process_swagger(spec, client_language, crd_mode=False):
     except PreprocessingException as e:
         print(e)
 
-
     if crd_mode:
         filter_api_group(spec)
     remove_model_prefixes(spec, crd_mode)
@@ -276,7 +291,9 @@ def process_swagger(spec, client_language, crd_mode=False):
 
     return spec
 
+
 def preserved_primitives_for_language(client_language):
+    print(f"{client_language=}")
     if client_language == "java":
         return ["intstr.IntOrString", "resource.Quantity", "v1.Patch"]
     elif client_language == "csharp":
@@ -285,15 +302,17 @@ def preserved_primitives_for_language(client_language):
         return ["intstr.IntOrString", "resource.Quantity"]
     elif client_language in ["typescript", "typescript-fetch"]:
         return ["intstr.IntOrString", "v1.MicroTime"]
-    elif client_language == "c":
+    elif client_language == "c" or client_language == "python-asyncio":
         return ["intstr.IntOrString"]
     else:
         return []
+
 
 def bad_description_pattern_for_language(client_language):
     if client_language == 'typescript-fetch':
         return '*/'
     return None
+
 
 def format_for_language(client_language):
     if client_language == "java":
@@ -301,25 +320,28 @@ def format_for_language(client_language):
     else:
         return {}
 
+
 def type_for_language(client_language):
     if client_language == "java":
-        return {"v1.Patch": { "type": "string"}}
+        return {"v1.Patch": {"type": "string"}}
     elif client_language == "typescript":
-        return {"v1.MicroTime": { "type": "string", "format": "date-time-micro" }}
+        return {"v1.MicroTime": {"type": "string", "format": "date-time-micro"}}
     elif client_language == "csharp":
         return {
-                "v1.Patch": { "type": "object", "properties": {"content": { "type": "object"}} },
-                "resource.Quantity": { "type": "object", "properties": {"value": { "type": "string"}} },
-                "intstr.IntOrString" : { "type": "object", "properties": {"value": { "type": "string"}} },
-               }
+            "v1.Patch": {"type": "object", "properties": {"content": {"type": "object"}}},
+            "resource.Quantity": {"type": "object", "properties": {"value": {"type": "string"}}},
+            "intstr.IntOrString": {"type": "object", "properties": {"value": {"type": "string"}}},
+        }
     else:
         return {}
+
 
 def removed_models_for_language(client_language):
     if client_language == "haskell-http-client":
         return ["intstr.IntOrString", "resource.Quantity"]
     else:
         return []
+
 
 def rename_model(spec, old_name, new_name):
     if new_name in spec['definitions']:
@@ -358,17 +380,19 @@ def is_model_deprecated(m):
         return False
     return m["description"].startswith("Deprecated.")
 
+
 def filter_api_group(spec):
     models = {}
     for k, v in spec['definitions'].items():
         if k.startswith(os.environ.get('KUBERNETES_CRD_GROUP_PREFIX')):
-            print("Adding Custom Resource by prefix %s" %k)
+            print("Adding Custom Resource by prefix %s" % k)
             models[k] = v
         elif k.startswith("io.k8s"):
-            print("Removing builtin Kubernetes Resource %s" %k)
+            print("Removing builtin Kubernetes Resource %s" % k)
         else:
-            print("Ignoring Custom Resource %s" %k)
+            print("Ignoring Custom Resource %s" % k)
     spec['definitions'] = models
+
 
 def remove_deprecated_models(spec):
     """
@@ -460,10 +484,13 @@ def remove_models(spec, to_remove_models):
         print("Removing model `%s " % k)
         del spec['definitions'][k]
 
+
 def inline_primitive_models(spec, excluded_primitives):
+    print(f"{excluded_primitives=}")
     to_remove_models = []
     for k, v in spec['definitions'].items():
         if k in excluded_primitives:
+            print(f"Skipping model removal {k}")
             continue
         if "properties" not in v:
             if k == "intstr.IntOrString":
@@ -477,6 +504,7 @@ def inline_primitive_models(spec, excluded_primitives):
     for k in to_remove_models:
         del spec['definitions'][k]
 
+
 def remove_bad_descriptions_recursively(model, pattern):
     desc = model.get('description', '')
     if desc.find(pattern) >= 0:
@@ -486,11 +514,13 @@ def remove_bad_descriptions_recursively(model, pattern):
     for prop in model['properties'].values():
         remove_bad_descriptions_recursively(prop, pattern)
 
+
 def remove_bad_descriptions(spec, pattern):
     if not pattern:
         return
     for model in spec['definitions'].values():
         remove_bad_descriptions_recursively(model, pattern)
+
 
 def add_custom_formatting(spec, custom_formats):
     for k, v in spec['definitions'].items():
@@ -498,11 +528,13 @@ def add_custom_formatting(spec, custom_formats):
             continue
         v["format"] = custom_formats[k]
 
+
 def add_custom_typing(spec, custom_types):
     for k, v in spec['definitions'].items():
         if k not in custom_types:
             continue
         v.update(custom_types[k])
+
 
 def add_openapi_codegen_x_implement_extension(spec, client_language):
     if client_language != "java":
@@ -516,7 +548,8 @@ def add_openapi_codegen_x_implement_extension(spec, client_language):
             # Status is explicitly excluded because it's obviously not a list object,
             # but it has ListMeta.
             continue
-        if not all(k in v['properties'] for k in ["metadata", "kind", "apiVersion"]) or "$ref" not in v['properties']['metadata']:
+        if not all(k in v['properties'] for k in ["metadata", "kind", "apiVersion"]) or "$ref" not in v['properties'][
+            'metadata']:
             continue  # not a legitimate kubernetes api object (imperfect assumption)
         if v["properties"]["metadata"]["$ref"] == "#/definitions/v1.ListMeta":
             if "x-implements" not in v:
@@ -528,11 +561,9 @@ def add_openapi_codegen_x_implement_extension(spec, client_language):
             v["x-implements"].append("io.kubernetes.client.common.KubernetesObject")
 
 
-
 def write_json(filename, object):
     with open(filename, 'w') as out:
         json.dump(object, out, sort_keys=False, indent=2, separators=(',', ': '), ensure_ascii=True)
-
 
 
 def main():
@@ -561,7 +592,6 @@ def main():
     )
     args = argparser.parse_args()
 
-
     unprocessed_spec = args.output_spec_path + ".unprocessed"
     in_spec = ""
     if os.environ.get("OPENAPI_SKIP_FETCH_SPEC") or False:
@@ -570,9 +600,9 @@ def main():
     else:
         pool = urllib3.PoolManager()
         spec_url = 'https://raw.githubusercontent.com/%s/%s/' \
-               '%s/api/openapi-spec/swagger.json' % (args.username,
-                                                     args.repository,
-                                                     args.kubernetes_branch)
+                   '%s/api/openapi-spec/swagger.json' % (args.username,
+                                                         args.repository,
+                                                         args.kubernetes_branch)
         with pool.request('GET', spec_url, preload_content=False) as response:
             if response.status != 200:
                 print("Error downloading spec file %s. Reason: %s" % (spec_url, response.reason))
