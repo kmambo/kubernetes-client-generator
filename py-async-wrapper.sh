@@ -181,7 +181,6 @@ for tag in ${tags[@]}; do
   pushd $DIR
   
   ./openapi/python-asyncio.sh python-async-client python-settings.sh
-  exit
 
   rm -f $SRC/swagger.json
   rm -f $SRC/swagger.json.unprocessed
