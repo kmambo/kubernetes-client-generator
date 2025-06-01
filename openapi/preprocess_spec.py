@@ -17,9 +17,8 @@ import operator
 import os.path
 import sys
 import argparse
+import traceback
 from collections import OrderedDict
-
-import urllib3
 
 # these four constants are shown as part of this example in []:
 # "[watch]Pod[List]" is the deprecated version of "[list]Pod?[watch]=True"
@@ -104,7 +103,8 @@ def strip_delete_collection_operation_watch_params(op, parent):
     if 'parameters' in op:
         for i in range(len(op['parameters'])):
             paramName = op['parameters'][i].get('name', None)
-            if paramName != WATCH_QUERY_PARAM_NAME and paramName != ALLOW_WATCH_BOOKMARKS_QUERY_PARAM_NAME:
+            if (paramName != WATCH_QUERY_PARAM_NAME and
+                    paramName != ALLOW_WATCH_BOOKMARKS_QUERY_PARAM_NAME):
                 params.append(op['parameters'][i])
     op['parameters'] = params
     return False
@@ -144,29 +144,31 @@ def strip_tags_from_operation_id(operation, _):
 
 
 def clean_crd_meta(spec):
-    for k, v in spec['definitions'].items():
+    for k, v in spec['components']['schemas'].items():
         if k.endswith('List'):
             print("Using built-in v1.ListMeta")
-            v['properties']['metadata']['$ref'] = '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta'
+            v['properties']['metadata']['$ref'] = '#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta'
             v['properties']['metadata'].pop('properties', None)
-        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta',
-                                  '#/definitions/v1.ListMeta')
-        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta',
-                                  '#/definitions/v1.ObjectMeta')
-        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta_v2',
-                                  '#/definitions/v1.ObjectMeta')
-        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Status',
-                                  '#/definitions/v1.Status')
-        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Status_v2',
-                                  '#/definitions/v1.Status')
-        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Patch',
-                                  '#/definitions/v1.Patch')
-        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.DeleteOptions',
-                                  '#/definitions/v1.DeleteOptions')
-        find_rename_ref_recursive(spec, '#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.DeleteOptions_v2',
-                                  '#/definitions/v1.DeleteOptions')
-        find_rename_ref_recursive(spec, '#/definitions/io.k8s.api.autoscaling.v1.Scale', '#/definitions/v1.Scale')
-        find_rename_ref_recursive(spec, '#/definitions/io.k8s.api.autoscaling.v1.Scale_v2', '#/definitions/v1.Scale')
+        find_rename_ref_recursive(spec, '#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta',
+                                  '#/components/schemas/v1.ListMeta')
+        find_rename_ref_recursive(spec, '#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta',
+                                  '#/components/schemas/v1.ObjectMeta')
+        find_rename_ref_recursive(spec, '#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta_v2',
+                                  '#/components/schemas/v1.ObjectMeta')
+        find_rename_ref_recursive(spec, '#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.Status',
+                                  '#/components/s/v1.Status')
+        find_rename_ref_recursive(spec, '#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.Status_v2',
+                                  '#/components/schemas/v1.Status')
+        find_rename_ref_recursive(spec, '#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.Patch',
+                                  '#/components/schemas/v1.Patch')
+        find_rename_ref_recursive(spec, '#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.DeleteOptions',
+                                  '#/components/schemas/v1.DeleteOptions')
+        find_rename_ref_recursive(spec, '#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.DeleteOptions_v2',
+                                  '#/components/schemas/v1.DeleteOptions')
+        find_rename_ref_recursive(spec, '#/components/schemas/io.k8s.api.autoscaling.v1.Scale',
+                                  '#/components/schemas/v1.Scale')
+        find_rename_ref_recursive(spec, '#/components/schemas/io.k8s.api.autoscaling.v1.Scale_v2',
+                                  '#/components/schemas/v1.Scale')
 
 
 def add_custom_objects_spec(spec):
@@ -186,7 +188,7 @@ def add_codegen_request_body(operation, _):
 
 def drop_paths(spec):
     paths = {}
-    if (os.environ.get('GENERATE_APIS') or False):
+    if os.environ.get('GENERATE_APIS', False):
         group_prefix = os.environ.get('KUBERNETES_CRD_GROUP_PREFIX')
         group_prefix_reversed = '.'.join(group_prefix.split('.')[::-1])
         for k, v in spec['paths'].items():
@@ -233,32 +235,18 @@ def expand_parameters(spec):
 
 
 def process_swagger(spec, client_language, crd_mode=False):
-    spec = add_custom_objects_spec(spec)
+    if 'schemas' not in spec['components'].keys():
+        return spec
+
+    #spec = add_custom_objects_spec(spec)
 
     if crd_mode:
         drop_paths(spec)
 
-    fix_paths(spec)
-
-    expand_parameters(spec)
-
+    #fix_paths(spec)
+    #expand_parameters(spec)
     apply_func_to_spec_operations(spec, strip_tags_from_operation_id)
-
-    if client_language == "csharp":
-        # 401s in the spec block the csharp code generator from throwing on 401
-        apply_func_to_spec_operations(spec, strip_401_response)
-
-        # force to autorest to generate stream
-        apply_func_to_spec_operations(spec, transform_to_csharp_stream_response)
-        # force to consume json if */*
-        apply_func_to_spec_operations(spec, transform_to_csharp_consume_json)
-
-    if client_language == "java":
-        # force to consume json, need this change due to https://github.com/OpenAPITools/openapi-generator/pull/10769
-        apply_func_to_spec_operations(spec, transform_to_java_consume_json)
-
     apply_func_to_spec_operations(spec, strip_delete_collection_operation_watch_params)
-
     apply_func_to_spec_operations(spec, add_codegen_request_body)
 
     operation_ids = {}
@@ -287,8 +275,6 @@ def process_swagger(spec, client_language, crd_mode=False):
 
     remove_models(spec, removed_models_for_language(client_language))
 
-    add_openapi_codegen_x_implement_extension(spec, client_language)
-
     return spec
 
 
@@ -302,7 +288,7 @@ def preserved_primitives_for_language(client_language):
         return ["intstr.IntOrString", "resource.Quantity"]
     elif client_language in ["typescript", "typescript-fetch"]:
         return ["intstr.IntOrString", "v1.MicroTime"]
-    elif client_language == "c" or client_language == "python-asyncio":
+    elif client_language == "c":
         return ["intstr.IntOrString"]
     else:
         return []
@@ -344,15 +330,15 @@ def removed_models_for_language(client_language):
 
 
 def rename_model(spec, old_name, new_name):
-    if new_name in spec['definitions']:
+    if new_name in spec['components']['schemas']:
         raise PreprocessingException(
             "Cannot rename model %s. new name %s exists." %
             (old_name, new_name))
     find_rename_ref_recursive(spec,
-                              "#/definitions/" + old_name,
-                              "#/definitions/" + new_name)
-    spec['definitions'][new_name] = spec['definitions'][old_name]
-    del spec['definitions'][old_name]
+                              "#/components/schemas/" + old_name,
+                              "#/components/schemas/" + new_name)
+    spec['components']['schemas'][new_name] = spec['components']['schemas'][old_name]
+    del spec['components']['schemas'][old_name]
 
 
 def find_rename_ref_recursive(root, old, new):
@@ -383,7 +369,7 @@ def is_model_deprecated(m):
 
 def filter_api_group(spec):
     models = {}
-    for k, v in spec['definitions'].items():
+    for k, v in spec['components']['schemas'].items():
         if k.startswith(os.environ.get('KUBERNETES_CRD_GROUP_PREFIX')):
             print("Adding Custom Resource by prefix %s" % k)
             models[k] = v
@@ -391,7 +377,7 @@ def filter_api_group(spec):
             print("Removing builtin Kubernetes Resource %s" % k)
         else:
             print("Ignoring Custom Resource %s" % k)
-    spec['definitions'] = models
+    spec['components']['schemas'] = models
 
 
 def remove_deprecated_models(spec):
@@ -402,12 +388,12 @@ def remove_deprecated_models(spec):
     and need to be removed.
     """
     models = {}
-    for k, v in spec['definitions'].items():
+    for k, v in spec['components']['schemas'].items():
         if is_model_deprecated(v):
             print("Removing deprecated model %s" % k)
         else:
             models[k] = v
-    spec['definitions'] = models
+    spec['components']['schemas'] = models
 
 
 def remove_model_prefixes(spec, crd_mode=False):
@@ -423,7 +409,7 @@ def remove_model_prefixes(spec, crd_mode=False):
     remove_deprecated_models(spec)
 
     models = {}
-    for k, v in spec['definitions'].items():
+    for k, v in spec['components']['schemas'].items():
         if k.startswith("io.k8s"):
             models[k] = {"split_n": 2}
         elif crd_mode and k.startswith(os.environ.get('KUBERNETES_CRD_GROUP_PREFIX')):
@@ -482,13 +468,13 @@ def find_replace_ref_recursive(root, ref_name, replace_map):
 def remove_models(spec, to_remove_models):
     for k in to_remove_models:
         print("Removing model `%s " % k)
-        del spec['definitions'][k]
+        del spec['components']['schemas'][k]
 
 
 def inline_primitive_models(spec, excluded_primitives):
     print(f"{excluded_primitives=}")
     to_remove_models = []
-    for k, v in spec['definitions'].items():
+    for k, v in spec['components']['schemas'].items():
         if k in excluded_primitives:
             print(f"Skipping model removal {k}")
             continue
@@ -498,11 +484,11 @@ def inline_primitive_models(spec, excluded_primitives):
             if "type" not in v:
                 v["type"] = "object"
             print("Making model `%s` inline as %s..." % (k, v["type"]))
-            find_replace_ref_recursive(spec, "#/definitions/" + k, v)
+            find_replace_ref_recursive(spec, "#/components/schemas/" + k, v)
             to_remove_models.append(k)
 
     for k in to_remove_models:
-        del spec['definitions'][k]
+        del spec['components']['schemas'][k]
 
 
 def remove_bad_descriptions_recursively(model, pattern):
@@ -518,104 +504,58 @@ def remove_bad_descriptions_recursively(model, pattern):
 def remove_bad_descriptions(spec, pattern):
     if not pattern:
         return
-    for model in spec['definitions'].values():
+    for model in spec['components']['schemas'].values():
         remove_bad_descriptions_recursively(model, pattern)
 
 
 def add_custom_formatting(spec, custom_formats):
-    for k, v in spec['definitions'].items():
+    for k, v in spec['components']['schemas'].items():
         if k not in custom_formats:
             continue
         v["format"] = custom_formats[k]
 
 
 def add_custom_typing(spec, custom_types):
-    for k, v in spec['definitions'].items():
+    for k, v in spec['components']['schemas'].items():
         if k not in custom_types:
             continue
         v.update(custom_types[k])
 
 
-def add_openapi_codegen_x_implement_extension(spec, client_language):
-    if client_language != "java":
-        return
-    if os.environ.get('OPENAPI_SKIP_BASE_INTERFACE') or False:
-        return
-    for k, v in spec['definitions'].items():
-        if "x-kubernetes-group-version-kind" not in v:
-            continue
-        if k == "v1.Status":
-            # Status is explicitly excluded because it's obviously not a list object,
-            # but it has ListMeta.
-            continue
-        if not all(k in v['properties'] for k in ["metadata", "kind", "apiVersion"]) or "$ref" not in v['properties'][
-            'metadata']:
-            continue  # not a legitimate kubernetes api object (imperfect assumption)
-        if v["properties"]["metadata"]["$ref"] == "#/definitions/v1.ListMeta":
-            if "x-implements" not in v:
-                v["x-implements"] = []
-            v["x-implements"].append("io.kubernetes.client.common.KubernetesListObject")
-        elif v["properties"]["metadata"]["$ref"] == "#/definitions/v1.ObjectMeta":
-            if "x-implements" not in v:
-                v["x-implements"] = []
-            v["x-implements"].append("io.kubernetes.client.common.KubernetesObject")
-
-
-def write_json(filename, object):
-    with open(filename, 'w') as out:
-        json.dump(object, out, sort_keys=False, indent=2, separators=(',', ': '), ensure_ascii=True)
+def write_json(filename, o):
+    with open(filename, 'wt') as out:
+        json.dump(o, out, sort_keys=False, indent=2, separators=(',', ': '), ensure_ascii=True)
 
 
 def main():
-    argparser = argparse.ArgumentParser()
-    argparser.add_argument(
-        'client_language',
-        help='Client language to setup spec for'
-    )
-    argparser.add_argument(
-        'kubernetes_branch',
-        help='Branch/tag of github.com/kubernetes/kubernetes to get spec from'
-    )
-    argparser.add_argument(
-        'output_spec_path',
-        help='Path to output spec file to'
-    )
-    argparser.add_argument(
-        'username',
-        help='Optional username if working on forks',
-        default='kubernetes'
-    )
-    argparser.add_argument(
-        'repository',
-        help='Optional repository name if working with kubernetes ecosystem projects',
-        default='kubernetes'
-    )
-    args = argparser.parse_args()
+    try:
+        argparser = argparse.ArgumentParser()
+        argparser.add_argument(
+            'version',
+            help='Tag of github.com/kubernetes/kubernetes to get spec from'
+        )
+        argparser.add_argument(
+            'output_spec_path',
+            help='Path to output spec file to'
+        )
+        argparser.add_argument(
+            'spec_path',
+            help='Path to input spec file',
+        )
+        args = argparser.parse_args()
 
-    unprocessed_spec = args.output_spec_path + ".unprocessed"
-    in_spec = ""
-    if os.environ.get("OPENAPI_SKIP_FETCH_SPEC") or False:
-        with open(unprocessed_spec, 'r') as content:
-            in_spec = json.load(content, object_pairs_hook=OrderedDict)
-    else:
-        pool = urllib3.PoolManager()
-        spec_url = 'https://raw.githubusercontent.com/%s/%s/' \
-                   '%s/api/openapi-spec/swagger.json' % (args.username,
-                                                         args.repository,
-                                                         args.kubernetes_branch)
-        with pool.request('GET', spec_url, preload_content=False) as response:
-            if response.status != 200:
-                print("Error downloading spec file %s. Reason: %s" % (spec_url, response.reason))
-                return 1
-            in_spec = json.load(response, object_pairs_hook=OrderedDict)
-    write_json(unprocessed_spec, in_spec)
-    # use version from branch/tag name if spec doesn't provide it
-    if in_spec['info']['version'] == 'unversioned':
-        in_spec['info']['version'] = args.kubernetes_branch
-    crd_mode = os.environ.get('KUBERNETES_CRD_MODE') or False
-    out_spec = process_swagger(in_spec, args.client_language, crd_mode)
-    write_json(args.output_spec_path, out_spec)
-    return 0
+        with open(args.spec_path, "rt") as spec_filepath:
+            in_spec = json.load(spec_filepath, object_pairs_hook=OrderedDict)
+        # use version from branch/tag name if spec doesn't provide it
+        if in_spec['info']['version'] == 'unversioned':
+            in_spec['info']['version'] = args.version
+        crd_mode = os.environ.get('KUBERNETES_CRD_MODE', False)
+        out_spec = process_swagger(in_spec, "python-asyncio", crd_mode)
+        write_json(args.output_spec_path, out_spec)
+        return 0
+    except Exception as e:
+        traceback.print_exception(e)
+        return 1
 
 
 if __name__ == '__main__':

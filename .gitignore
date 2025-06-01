@@ -5,3 +5,4 @@
 *.diff
 python-client/
 /python-async-client/
+/output/

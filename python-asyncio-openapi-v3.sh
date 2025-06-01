@@ -1,23 +1,242 @@
 #!/usr/local/bin/bash
-set -euxo pipefail
+
+set -euox pipefail
+
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-SPEC_DIR=/Users/partho/oss/kubernetes/api/openapi-spec/v3
-SPEC_COPY_DIR=${SCRIPT_DIR}/spec
-OUTDIR=$SCRIPT_DIR/output
+KUBERNETES_DIR=$( cd -- "$( dirname -- "${SCRIPT_DIR}" )" &> /dev/null && pwd )/kubernetes
+SPEC_DIR=${KUBERNETES_DIR}/api/openapi-spec/v3
+DST=${SCRIPT_DIR}/output
+SPEC_COPY_DIR=${DST}/spec
+PRE_PROCESS_SCRIPT=${SCRIPT_DIR}/openapi/preprocess_spec.py
+LIB_NAME=kubernetes_asyncio
 
-pushd $SCRIPT_DIR
-trap "popd" SIGINT SIGTERM SIGHUP SIGQUIT SIGABRT
-mkdir -p $SPEC_COPY_DIR
-rm -f $SPEC_COPY_DIR/*
-rm -f $SPEC_COPY_DIR/.*
-cp $SPEC_DIR/*.json $SPEC_COPY_DIR
-cp $SPEC_DIR/.*.json $SPEC_COPY_DIR
+init_py() {
+  local tag=$1
+  local version="${tag:1}"
+  mkdir -p ${DST}/kubernetes_asyncio
+  pushd ${DST}/kubernetes_asyncio
+  cat > __init__.py << EOF
+__project__ = 'kubernetes_asyncio'
+# The version is auto-updated. Please do not edit.
+__version__ = "$version"
 
+from . import client
 
-openapi-generator-cli generate -g python --library asyncio --package-name client  --input-spec-root-directory $SPEC_COPY_DIR -o $OUTDIR
-# shopt -s extglob
-# for file in $HOME/oss/kubernetes/api/openapi-spec/v3/*(*.json|.*.json)
-# do
-#   echo $file
-# done
+EOF
+  popd
+}
 
+pyproject() {
+    local tag=$1
+    local version="${tag:1}"
+    mkdir -p $DST
+    pushd $DST
+    cat > pyproject.toml << EOF
+[project]
+name = "kubernetes_asyncio_pydantic"
+version = "$version"
+description = "Kubernetes client"
+requires-python = ">=3.12,<4.0"
+authors = [
+    {name = "Partho Bhowmick",email = "partho.bhowmick@icloud.com"}
+]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/kmambo/kubernetes-pydantic-asyncio-client"
+keywords = ["OpenAPI", "OpenAPI-Generator", "Kubernetes"]
+dynamic = [ "dependencies" ]
+
+[tool.poetry]
+packages = [{include = "kubernetes_asyncio"}]
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">= 7.2.1"
+pytest-cov = ">= 2.8.1"
+tox = ">= 3.9.0"
+flake8 = ">= 4.0.0"
+types-python-dateutil = ">= 2.8.19.14"
+mypy = ">= 1.5"
+black = ">24.10.0"
+
+# [build-system]
+# requires = ["setuptools"]
+# build-backend = "setuptools.build_meta"
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pylint.'MESSAGES CONTROL']
+extension-pkg-whitelist = "pydantic"
+
+[tool.mypy]
+files = [
+  "client",
+  #"test",  # auto-generated tests
+  "tests", # hand-written tests
+]
+# TODO: enable "strict" once all these individual checks are passing
+# strict = true
+
+# List from: https://mypy.readthedocs.io/en/stable/existing_code.html#introduce-stricter-options
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+## Getting these passing should be easy
+strict_equality = true
+extra_checks = true
+
+## Strongly recommend enabling this one as soon as you can
+check_untyped_defs = true
+
+## These shouldn't be too much additional work, but may be tricky to
+## get passing if you use a lot of untyped libraries
+disallow_subclassing_any = true
+disallow_untyped_decorators = true
+disallow_any_generics = true
+
+### These next few are various gradations of forcing use of type annotations
+#disallow_untyped_calls = true
+#disallow_incomplete_defs = true
+#disallow_untyped_defs = true
+#
+### This one isn't too hard to get passing, but return on investment is lower
+#no_implicit_reexport = true
+#
+### This one can be tricky to get passing if you use a lot of untyped libraries
+#warn_return_any = true
+
+[[tool.mypy.overrides]]
+module = [
+  "client.configuration",
+]
+warn_unused_ignores = true
+strict_equality = true
+extra_checks = true
+check_untyped_defs = true
+disallow_subclassing_any = true
+disallow_untyped_decorators = true
+disallow_any_generics = true
+disallow_untyped_calls = true
+disallow_incomplete_defs = true
+disallow_untyped_defs = true
+no_implicit_reexport = true
+warn_return_any = true
+
+EOF
+poetry add "urllib3 (>=1.25.3,<3.0.0)" \
+    "python-dateutil (>=2.8.2)" \
+    "aiohttp (>=3.8.4)" \
+    "aiohttp-retry (>= 2.8.3)" \
+    "pydantic (>=2,<3)" \
+    "typing-extensions (>=4.7.1)"
+poetry lock
+poetry check
+    popd
+}
+
+openapi_validate() {
+  local spec_dir=$1
+  local validation_dir=${spec_dir}/openapi-v3-spec-validation
+
+  mkdir -p ${validation_dir}
+  shopt -s dotglob
+  for f in ${SPEC_COPY_DIR}/*.json ;
+  do
+    filen=$(basename ${f})
+    extension="${filen##*.}"
+    filename="${filen%.*}"
+    echo "Validating ${filen} ..."
+    openapi-generator-cli  validate -i $f --recommend &> ${validation_dir}/${filename}
+  done
+  shopt -u dotglob
+
+}
+
+cp_spec() {
+  local tag=$1
+  mkdir -p ${SPEC_COPY_DIR}
+  pushd ${KUBERNETES_DIR}
+  trap "popd" SIGINT SIGTERM SIGHUP SIGQUIT SIGABRT
+  git checkout $tag
+  cp ${SPEC_DIR}/*.json ${SPEC_COPY_DIR}
+  cp ${SPEC_DIR}/.*.json ${SPEC_COPY_DIR}
+  git switch -
+  popd
+  trap - SIGINT SIGTERM SIGHUP SIGQUIT SIGABRT
+}
+
+transform_spec() {
+  local tag=$1
+  local version="${tag:1}"
+  shopt -s dotglob
+  source ${SCRIPT_DIR}/.venv/bin/activate
+  for f in ${SPEC_COPY_DIR}/*.json ;
+  do
+    filen=$(basename ${f})
+    echo $filen
+    python3 ${PRE_PROCESS_SCRIPT} ${version} ${f} ${f}
+  done
+  shopt -u dotglob
+}
+
+generate_library() {
+  local tag=$1
+  local version="${tag:1}"
+  openapi-generator-cli generate -g python \
+    --library asyncio --package-name client \
+    --skip-validate-spec \
+    --package-name kubernetes_asyncio \
+    --additional-properties=projectName=${LIB_NAME},packageVersion=${version}  \
+    --input-spec-root-directory ${SPEC_COPY_DIR} -o ${DST}
+}
+
+rename_output() {
+  # I am on a MacOS
+  local SED=/usr/local/bin/gsed
+  find "${DST}/test" -type f -name \*.py \
+    -exec ${SED} -i "s/\bclient/${LIB_NAME}.client/g" {} +
+  find "${DST}" -path "${DST}/base" -prune -o -type f -a -name \*.md \
+    -exec ${SED} -i "s/\bclient/${LIB_NAME}.client/g" {} +
+  find "${DST}" -path "${DST}/base" -prune -o -type f -a -name \*.md \
+    -exec ${SED} -i "s/${LIB_NAME}.client-python/client-python/g" {} +
+
+  # fix imports
+  find "${DST}/client/" -type f -name \*.py \
+    -exec ${SED} -i "s/import client\./import ${LIB_NAME}.client./g" {} +
+  find "${DST}/client/" -type f -name \*.py \
+    -exec ${SED} -i "s/from client/from ${LIB_NAME}.client/g" {} +
+  find "${DST}/client/" -type f -name \*.py \
+    -exec ${SED} -i "s/getattr(client\.models/getattr(${LIB_NAME}.client.models/g" {} +
+
+}
+
+init_dirs() {
+  mkdir -p ${DST}
+  rm -rf ${DST}/*
+  mkdir -p ${SPEC_COPY_DIR}
+}
+
+check_py() {
+  pushd ${DST}
+  	isort ${LIB_NAME} tests || true
+  	black ${LIB_NAME} tests || true
+  	flake8 ${LIB_NAME} tests || true
+  	mypy ${LIB_NAME} tests || true
+  popd
+
+  deactivate
+}
+
+if [ $# -eq 0 ]; then
+  echo "Usage: $(basename $0) <GIT_TAG>"
+  exit
+fi
+
+#init_dirs
+#cp_spec $1
+#transform_spec $1
+#openapi_validate ${SPEC_COPY_DIR}
+generate_library $1
+check_py
+#rename_output
