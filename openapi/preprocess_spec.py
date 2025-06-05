@@ -95,11 +95,11 @@ def remove_watch_operations(op, parent, operation_ids):
     return True
 
 
-def strip_delete_collection_operation_watch_params(op, parent):
+def strip_delete_collection_operation_watch_params(op, parent, filepath):
     op_id = op['operationId']
     if not op_id.startswith(DELETECOLLECTION_OP_PREFIX):
         return
-    print(f"strip_delete_collection_operation_watch_params() in file: {parent}")
+    print(f"strip_delete_collection_operation_watch_params() in file: {filepath}")
     params = []
     if 'parameters' in op:
         for i in range(len(op['parameters'])):

@@ -202,14 +202,14 @@ generate_library() {
 rename_output() {
   # I am on MacOS
   local SED=/usr/local/bin/gsed
-  LIB_PATH = "${DST}/${LIB_NAME}"
+  local LIB_PATH="${DST}/${LIB_NAME}"
   # fix imports
   find "${LIB_PATH}/api" -type f -name *.py \
-    -exec ${SED} -i "s/import ${LIB_NAME}\.api\./import \./g" {} +
+    -exec ${SED} -i "s/from ${LIB_NAME}\.api\./from \./g" {} +
   find "${LIB_PATH}/models" -type f -name *.py \
-    -exec ${SED} -i "s/import ${LIB_NAME}\.models\./import \./g" {} +
-  find "${DST}/client/" -type f -name \*.py \
-    -exec ${SED} -i "s/from client/from ${LIB_NAME}.client/g" {} +
+    -exec ${SED} -i "s/from ${LIB_NAME}\.models\./from \./g" {} +
+#  find "${DST}/client/" -type f -name \*.py \
+#    -exec ${SED} -i "s/from client/from ${LIB_NAME}.client/g" {} +
 #  find "${DST}/client/" -type f -name \*.py \
 #    -exec ${SED} -i "s/getattr(client\.models/getattr(${LIB_NAME}.client.models/g" {} +
 
@@ -246,12 +246,12 @@ if [ $# -eq 0 ]; then
   exit
 fi
 
-init_dirs
-cp_spec $1
-transform_spec $1
-openapi_validate ${SPEC_COPY_DIR}
-generate_library $1
-pyproject $1
+# init_dirs
+# cp_spec $1
+# transform_spec $1
+#openapi_validate ${SPEC_COPY_DIR}
+# generate_library $1
+# pyproject $1
+rename_output
 check_py
 local_build
-rename_output
