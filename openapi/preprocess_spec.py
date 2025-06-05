@@ -33,7 +33,7 @@ CUSTOM_OBJECTS_SPEC_PATH = os.path.join(
     os.path.dirname(__file__),
     'custom_objects_spec.json')
 
-_ops = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch']
+HTTP_VERBS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch']
 
 
 class PreprocessingException(Exception):
@@ -61,12 +61,12 @@ def apply_func_to_spec_operations(spec, func, *params):
                  If the return value of the func is True, then the operation
                  will be deleted from the spec.
     """
-    for k, v in spec['paths'].items():
-        for op in _ops:
-            if op not in v:
+    for _, api_http_verb in spec['paths'].items():
+        for op in HTTP_VERBS:
+            if op not in api_http_verb:
                 continue
-            if func(v[op], v, *params):
-                del v[op]
+            if func(api_http_verb[op], api_http_verb, *params):
+                del api_http_verb[op]
 
 
 def _has_property(prop_list, property_name):
@@ -99,6 +99,7 @@ def strip_delete_collection_operation_watch_params(op, parent):
     op_id = op['operationId']
     if not op_id.startswith(DELETECOLLECTION_OP_PREFIX):
         return
+    print(f"strip_delete_collection_operation_watch_params() in file: {parent}")
     params = []
     if 'parameters' in op:
         for i in range(len(op['parameters'])):
@@ -234,19 +235,19 @@ def expand_parameters(spec):
     del spec['parameters']
 
 
-def process_swagger(spec, client_language, crd_mode=False):
+def process_swagger(spec, client_language, filepath, crd_mode=False):
     if 'schemas' not in spec['components'].keys():
         return spec
 
-    #spec = add_custom_objects_spec(spec)
+    # spec = add_custom_objects_spec(spec)
 
     if crd_mode:
         drop_paths(spec)
 
-    #fix_paths(spec)
-    #expand_parameters(spec)
+    # fix_paths(spec)
+    expand_parameters(spec)
     apply_func_to_spec_operations(spec, strip_tags_from_operation_id)
-    apply_func_to_spec_operations(spec, strip_delete_collection_operation_watch_params)
+    apply_func_to_spec_operations(spec, strip_delete_collection_operation_watch_params, filepath)
     apply_func_to_spec_operations(spec, add_codegen_request_body)
 
     operation_ids = {}
@@ -261,19 +262,12 @@ def process_swagger(spec, client_language, crd_mode=False):
 
     if crd_mode:
         filter_api_group(spec)
+
     remove_model_prefixes(spec, crd_mode)
-
     inline_primitive_models(spec, preserved_primitives_for_language(client_language))
-
-    remove_bad_descriptions(spec, bad_description_pattern_for_language(client_language))
 
     if crd_mode:
         clean_crd_meta(spec)
-
-    add_custom_formatting(spec, format_for_language(client_language))
-    add_custom_typing(spec, type_for_language(client_language))
-
-    remove_models(spec, removed_models_for_language(client_language))
 
     return spec
 
@@ -298,13 +292,6 @@ def bad_description_pattern_for_language(client_language):
     if client_language == 'typescript-fetch':
         return '*/'
     return None
-
-
-def format_for_language(client_language):
-    if client_language == "java":
-        return {"resource.Quantity": "quantity", "v1.Patch": "patch"}
-    else:
-        return {}
 
 
 def type_for_language(client_language):
@@ -465,12 +452,6 @@ def find_replace_ref_recursive(root, ref_name, replace_map):
             find_replace_ref_recursive(v, ref_name, replace_map)
 
 
-def remove_models(spec, to_remove_models):
-    for k in to_remove_models:
-        print("Removing model `%s " % k)
-        del spec['components']['schemas'][k]
-
-
 def inline_primitive_models(spec, excluded_primitives):
     print(f"{excluded_primitives=}")
     to_remove_models = []
@@ -508,13 +489,6 @@ def remove_bad_descriptions(spec, pattern):
         remove_bad_descriptions_recursively(model, pattern)
 
 
-def add_custom_formatting(spec, custom_formats):
-    for k, v in spec['components']['schemas'].items():
-        if k not in custom_formats:
-            continue
-        v["format"] = custom_formats[k]
-
-
 def add_custom_typing(spec, custom_types):
     for k, v in spec['components']['schemas'].items():
         if k not in custom_types:
@@ -550,7 +524,7 @@ def main():
         if in_spec['info']['version'] == 'unversioned':
             in_spec['info']['version'] = args.version
         crd_mode = os.environ.get('KUBERNETES_CRD_MODE', False)
-        out_spec = process_swagger(in_spec, "python-asyncio", crd_mode)
+        out_spec = process_swagger(in_spec, "python-asyncio", filepath=args.spec_path, crd_mode=crd_mode)
         write_json(args.output_spec_path, out_spec)
         return 0
     except Exception as e:

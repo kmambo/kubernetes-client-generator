@@ -4,33 +4,17 @@ set -euox pipefail
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 KUBERNETES_DIR=$( cd -- "$( dirname -- "${SCRIPT_DIR}" )" &> /dev/null && pwd )/kubernetes
+PYLINT_TEMPLATE_DIR=${SCRIPT_DIR}/pylint-templates
 SPEC_DIR=${KUBERNETES_DIR}/api/openapi-spec/v3
 DST=${SCRIPT_DIR}/output
 SPEC_COPY_DIR=${DST}/spec
 PRE_PROCESS_SCRIPT=${SCRIPT_DIR}/openapi/preprocess_spec.py
 LIB_NAME=kubernetes_asyncio
 
-init_py() {
-  local tag=$1
-  local version="${tag:1}"
-  mkdir -p ${DST}/kubernetes_asyncio
-  pushd ${DST}/kubernetes_asyncio
-  cat > __init__.py << EOF
-__project__ = 'kubernetes_asyncio'
-# The version is auto-updated. Please do not edit.
-__version__ = "$version"
-
-from . import client
-
-EOF
-  popd
-}
-
-pyproject() {
+gen_manual_pyproj() {
+  # assume already in ${DST}
     local tag=$1
     local version="${tag:1}"
-    mkdir -p $DST
-    pushd $DST
     cat > pyproject.toml << EOF
 [project]
 name = "kubernetes_asyncio_pydantic"
@@ -58,9 +42,6 @@ types-python-dateutil = ">= 2.8.19.14"
 mypy = ">= 1.5"
 black = ">24.10.0"
 
-# [build-system]
-# requires = ["setuptools"]
-# build-backend = "setuptools.build_meta"
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
@@ -123,16 +104,42 @@ disallow_untyped_defs = true
 no_implicit_reexport = true
 warn_return_any = true
 
+[tool.black]
+line-length = 88
+target-version = ["py312", "py313"]
+
+[tool.isort]
+profile = "black"
+
 EOF
-poetry add "urllib3 (>=1.25.3,<3.0.0)" \
-    "python-dateutil (>=2.8.2)" \
-    "aiohttp (>=3.8.4)" \
-    "aiohttp-retry (>= 2.8.3)" \
-    "pydantic (>=2,<3)" \
-    "typing-extensions (>=4.7.1)"
-poetry lock
-poetry check
-    popd
+
+}
+
+pyproject() {
+  local tag=$1
+  local version="${tag:1}"
+  pushd $DST
+  mv pyproject.toml pyproject.backup.toml
+
+  gen_manual_pyproj $tag
+  poetry check || poetry lock
+  poetry add "urllib3 (>=1.25.3,<3.0.0)" \
+      "python-dateutil (>=2.8.2)" \
+      "aiohttp (>=3.8.4)" \
+      "aiohttp-retry (>= 2.8.3)" \
+      "pydantic (>=2,<3)" \
+      "typing-extensions (>=4.7.1)"
+
+  poetry add -G dev \
+    "pytest  (>= 7.2.1)" \
+    "pytest-cov (>= 2.8.1)" \
+    "tox (>= 3.9.0)" \
+    "flake8 (>= 4.0.0)" \
+    "types-python-dateutil (>= 2.8.19.14)" \
+    "mypy (>= 1.5)"
+
+  poetry lock
+  popd
 }
 
 openapi_validate() {
@@ -177,6 +184,7 @@ transform_spec() {
     echo $filen
     python3 ${PRE_PROCESS_SCRIPT} ${version} ${f} ${f}
   done
+  deactivate
   shopt -u dotglob
 }
 
@@ -192,51 +200,58 @@ generate_library() {
 }
 
 rename_output() {
-  # I am on a MacOS
+  # I am on MacOS
   local SED=/usr/local/bin/gsed
-  find "${DST}/test" -type f -name \*.py \
-    -exec ${SED} -i "s/\bclient/${LIB_NAME}.client/g" {} +
-  find "${DST}" -path "${DST}/base" -prune -o -type f -a -name \*.md \
-    -exec ${SED} -i "s/\bclient/${LIB_NAME}.client/g" {} +
-  find "${DST}" -path "${DST}/base" -prune -o -type f -a -name \*.md \
-    -exec ${SED} -i "s/${LIB_NAME}.client-python/client-python/g" {} +
-
+  LIB_PATH = "${DST}/${LIB_NAME}"
   # fix imports
-  find "${DST}/client/" -type f -name \*.py \
-    -exec ${SED} -i "s/import client\./import ${LIB_NAME}.client./g" {} +
+  find "${LIB_PATH}/api" -type f -name *.py \
+    -exec ${SED} -i "s/import ${LIB_NAME}\.api\./import \./g" {} +
+  find "${LIB_PATH}/models" -type f -name *.py \
+    -exec ${SED} -i "s/import ${LIB_NAME}\.models\./import \./g" {} +
   find "${DST}/client/" -type f -name \*.py \
     -exec ${SED} -i "s/from client/from ${LIB_NAME}.client/g" {} +
-  find "${DST}/client/" -type f -name \*.py \
-    -exec ${SED} -i "s/getattr(client\.models/getattr(${LIB_NAME}.client.models/g" {} +
+#  find "${DST}/client/" -type f -name \*.py \
+#    -exec ${SED} -i "s/getattr(client\.models/getattr(${LIB_NAME}.client.models/g" {} +
 
 }
 
 init_dirs() {
   mkdir -p ${DST}
-  rm -rf ${DST}/*
+  rm -rf ${DST}/* ${DST}/.*
   mkdir -p ${SPEC_COPY_DIR}
 }
 
 check_py() {
+  cp ${PYLINT_TEMPLATE_DIR}/.flake8 ${DST}
+  cp ${PYLINT_TEMPLATE_DIR}/mypy.ini ${DST}
+  POETRY_VIRTUALENVS_CREATE=true
+  POETRY_VIRTUALENVS_IN_PROJECT=true
   pushd ${DST}
-  	isort ${LIB_NAME} tests || true
-  	black ${LIB_NAME} tests || true
-  	flake8 ${LIB_NAME} tests || true
-  	mypy ${LIB_NAME} tests || true
+  	poetry run isort ${LIB_NAME} || true
+  	find ${LIB_NAME} -type f -name '*.py' | xargs poetry run black || true
+  	poetry run flake8 ${LIB_NAME} || true
+  	poetry run mypy ${LIB_NAME} || true
   popd
-
-  deactivate
 }
+
+local_build() {
+  pushd ${DST}
+  poetry build
+  popd
+}
+
 
 if [ $# -eq 0 ]; then
   echo "Usage: $(basename $0) <GIT_TAG>"
   exit
 fi
 
-#init_dirs
-#cp_spec $1
-#transform_spec $1
-#openapi_validate ${SPEC_COPY_DIR}
+init_dirs
+cp_spec $1
+transform_spec $1
+openapi_validate ${SPEC_COPY_DIR}
 generate_library $1
+pyproject $1
 check_py
-#rename_output
+local_build
+rename_output
