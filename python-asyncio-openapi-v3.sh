@@ -191,11 +191,15 @@ transform_spec() {
 generate_library() {
   local tag=$1
   local version="${tag:1}"
+
   openapi-generator-cli generate -g python \
     --library asyncio --package-name client \
     --skip-validate-spec \
+    --minimal-update \
     --package-name kubernetes_asyncio \
     --additional-properties=projectName=${LIB_NAME},packageVersion=${version}  \
+    --language-specific-primitives=intstr.IntOrString \
+    --import-mappings=intstr.IntOrString=IntOrStr \
     --input-spec-root-directory ${SPEC_COPY_DIR} -o ${DST}
 }
 
@@ -246,12 +250,12 @@ if [ $# -eq 0 ]; then
   exit
 fi
 
-init_dirs
-cp_spec $1
-transform_spec $1
-openapi_validate ${SPEC_COPY_DIR}
-generate_library $1
-pyproject $1
-rename_output
+# init_dirs
+# cp_spec $1
+# transform_spec $1
+#openapi_validate ${SPEC_COPY_DIR}
+# generate_library $1
+# pyproject $1
+# rename_output
 check_py
 local_build
