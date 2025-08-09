@@ -10,6 +10,7 @@ DST=${SCRIPT_DIR}/output
 SPEC_COPY_DIR=${DST}/spec
 PRE_PROCESS_SCRIPT=${SCRIPT_DIR}/openapi/preprocess_spec.py
 LIB_NAME=kubernetes_asyncio
+KUBERNETES_ASYNCIO=$( cd -- "$( dirname -- "${SCRIPT_DIR}" )" &> /dev/null && pwd )/python-async-client
 
 gen_manual_pyproj() {
   # assume already in ${DST}
@@ -164,6 +165,7 @@ cp_spec() {
   local tag=$1
   mkdir -p ${SPEC_COPY_DIR}
   pushd ${KUBERNETES_DIR}
+  git pull
   trap "popd" SIGINT SIGTERM SIGHUP SIGQUIT SIGABRT
   git checkout $tag
   cp ${SPEC_DIR}/*.json ${SPEC_COPY_DIR}
@@ -212,10 +214,6 @@ rename_output() {
     -exec ${SED} -i "s/from ${LIB_NAME}\.api\./from \./g" {} +
   find "${LIB_PATH}/models" -type f -name *.py \
     -exec ${SED} -i "s/from ${LIB_NAME}\.models\./from \./g" {} +
-#  find "${DST}/client/" -type f -name \*.py \
-#    -exec ${SED} -i "s/from client/from ${LIB_NAME}.client/g" {} +
-#  find "${DST}/client/" -type f -name \*.py \
-#    -exec ${SED} -i "s/getattr(client\.models/getattr(${LIB_NAME}.client.models/g" {} +
 
 }
 
@@ -244,18 +242,33 @@ local_build() {
   popd
 }
 
+gitops() {
+    local tag=$1
+    pushd ${KUBERNETES_ASYNCIO}
+    git switch - || true
+    rm -rf *
+    cp -rf ${DST}/* .
+    git status
+    git add -A
+    git commit -m "commiting version $tag"
+    git tag -d $tag || true
+    git tag $tag
+    popd
+}
 
 if [ $# -eq 0 ]; then
   echo "Usage: $(basename $0) <GIT_TAG>"
   exit
 fi
 
-# init_dirs
-# cp_spec $1
-# transform_spec $1
+init_dirs
+cp_spec $1
+transform_spec $1
 #openapi_validate ${SPEC_COPY_DIR}
-# generate_library $1
-# pyproject $1
-# rename_output
+generate_library $1
+pyproject $1
+rename_output
 check_py
 local_build
+gitops $1
+
