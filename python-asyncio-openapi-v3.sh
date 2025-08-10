@@ -1,6 +1,6 @@
 #!/usr/local/bin/bash
 
-set -euox pipefail
+set -euxo pipefail
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 KUBERNETES_DIR=$( cd -- "$( dirname -- "${SCRIPT_DIR}" )" &> /dev/null && pwd )/kubernetes
@@ -21,7 +21,7 @@ gen_manual_pyproj() {
 name = "kubernetes_asyncio_pydantic"
 version = "$version"
 description = "Kubernetes client"
-requires-python = ">=3.12,<4.0"
+requires-python = ">=3.13,<4.0"
 authors = [
     {name = "Partho Bhowmick",email = "partho.bhowmick@icloud.com"}
 ]
@@ -38,10 +38,11 @@ packages = [{include = "kubernetes_asyncio"}]
 pytest = ">= 7.2.1"
 pytest-cov = ">= 2.8.1"
 tox = ">= 3.9.0"
-flake8 = ">= 4.0.0"
 types-python-dateutil = ">= 2.8.19.14"
-mypy = ">= 1.5"
-black = ">24.10.0"
+flake8 = ">= 4.0.0"
+mypy = ">= 1.7"
+black = ">= 24.10.0"
+isort = ">= 6.0.1"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
@@ -52,7 +53,7 @@ extension-pkg-whitelist = "pydantic"
 
 [tool.mypy]
 files = [
-  "client",
+  "kubernetes_asyncio",
   #"test",  # auto-generated tests
   "tests", # hand-written tests
 ]
@@ -107,7 +108,7 @@ warn_return_any = true
 
 [tool.black]
 line-length = 88
-target-version = ["py312", "py313"]
+target-version = ["py313"]
 
 [tool.isort]
 profile = "black"
@@ -120,7 +121,6 @@ pyproject() {
   local tag=$1
   local version="${tag:1}"
   pushd $DST
-  mv pyproject.toml pyproject.backup.toml
 
   gen_manual_pyproj $tag
   poetry check || poetry lock
@@ -135,9 +135,13 @@ pyproject() {
     "pytest  (>= 7.2.1)" \
     "pytest-cov (>= 2.8.1)" \
     "tox (>= 3.9.0)" \
-    "flake8 (>= 4.0.0)" \
     "types-python-dateutil (>= 2.8.19.14)" \
-    "mypy (>= 1.5)"
+    "mypy (>= 1.5)" \
+    "flake8 (>= 4.0.0)" \
+    "isort (>= 6.0.1)" \
+    "black (>= 25.1.0)" \
+    "pyright (>= 1.1.385)" \
+    "autoflake (>= 2.3.1)"
 
   poetry lock
   popd
@@ -195,7 +199,7 @@ generate_library() {
   local version="${tag:1}"
 
   openapi-generator-cli generate -g python \
-    --library asyncio --package-name client \
+    --library asyncio \
     --skip-validate-spec \
     --minimal-update \
     --package-name kubernetes_asyncio \
@@ -229,6 +233,11 @@ check_py() {
   POETRY_VIRTUALENVS_CREATE=true
   POETRY_VIRTUALENVS_IN_PROJECT=true
   pushd ${DST}
+  	# find ${LIB_NAME} -type f -name '*.py' | xargs poetry run autoflake || true
+  	poetry run autoflake --remove-unused-variables \
+  	                     --ignore-pass-statements \
+  	                     --ignore-pass-after-docstring \
+  	                     -r "${LIB_NAME}"
   	poetry run isort ${LIB_NAME} || true
   	find ${LIB_NAME} -type f -name '*.py' | xargs poetry run black || true
   	poetry run flake8 ${LIB_NAME} || true
@@ -244,7 +253,7 @@ local_build() {
 
 gitops() {
     local tag=$1
-    pushd ${KUBERNETES_ASYNCIO}
+    pushd "${KUBERNETES_ASYNCIO}"
     git switch - || true
     rm -rf *
     cp -rf ${DST}/* .
@@ -257,7 +266,7 @@ gitops() {
 }
 
 if [ $# -eq 0 ]; then
-  echo "Usage: $(basename $0) <GIT_TAG>"
+  echo "Usage: $(basename "$0") <GIT_TAG>"
   exit
 fi
 
@@ -270,5 +279,4 @@ pyproject $1
 rename_output
 check_py
 local_build
-gitops $1
-
+gitops "$1"
