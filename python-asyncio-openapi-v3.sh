@@ -244,6 +244,7 @@ check_py() {
   	find ${LIB_NAME} -type f -name '*.py' | xargs poetry run black || true
   	poetry run flake8 ${LIB_NAME} || true
   	poetry run mypy ${LIB_NAME} || true
+  	poetry run pytest
   popd
 }
 
