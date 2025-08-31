@@ -123,7 +123,7 @@ pyproject() {
   pushd $DST
 
   gen_manual_pyproj $tag
-  poetry check || poetry lock
+  poetry check && poetry lock
   poetry add "urllib3 (>=1.25.3,<3.0.0)" \
       "python-dateutil (>=2.8.2)" \
       "aiohttp (>=3.8.4)" \
@@ -234,10 +234,12 @@ check_py() {
   POETRY_VIRTUALENVS_IN_PROJECT=true
   pushd ${DST}
   	# find ${LIB_NAME} -type f -name '*.py' | xargs poetry run autoflake || true
-  	poetry run autoflake --remove-unused-variables \
-  	                     --ignore-pass-statements \
-  	                     --ignore-pass-after-docstring \
-  	                     -r "${LIB_NAME}"
+
+    poetry run  autoflake \
+      --ignore-pass-statements \
+      --ignore-pass-after-docstring \
+      --remove-all-unused-imports \
+      -i -r kubernetes_asyncio
   	poetry run isort ${LIB_NAME} || true
   	find ${LIB_NAME} -type f -name '*.py' | xargs poetry run black || true
   	poetry run flake8 ${LIB_NAME} || true
