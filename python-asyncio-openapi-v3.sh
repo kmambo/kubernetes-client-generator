@@ -257,15 +257,25 @@ local_build() {
 
 gitops() {
     local tag=$1
+    local feature_branch=branch/$tag
     pushd "${KUBERNETES_ASYNCIO}"
-    git checkout develop || true
+    git checkout develop
+    git branch -b $feature_branch
     rm -rf *
     cp -rf ${DST}/* .
     git status
     git add -A
     git commit -m "commiting version $tag"
+    git checkout develop
+    git merge $feature_branch
+#    gh pr create -B develop \
+#      -b "autocommit $tag" \
+#      -t "autocommit $tag"
+#    gh pr review -a -comment "auto-approved by bot"
+#    gh pr merge -s -d --auto
     git tag -d $tag || true
     git tag $tag
+    git push --tags
     popd
 }
 
