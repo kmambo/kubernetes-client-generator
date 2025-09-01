@@ -3,7 +3,7 @@
 set -euxo pipefail
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-KUBERNETES_DIR=$( cd -- "$( dirname -- "${SCRIPT_DIR}" )" &> /dev/null && pwd )/kubernetes
+KUBERNETES_DIR="${SCRIPT_DIR}/kubernetes"
 PYLINT_TEMPLATE_DIR=${SCRIPT_DIR}/pylint-templates
 SPEC_DIR=${KUBERNETES_DIR}/api/openapi-spec/v3
 DST=${SCRIPT_DIR}/output
@@ -11,6 +11,7 @@ SPEC_COPY_DIR=${DST}/spec
 PRE_PROCESS_SCRIPT=${SCRIPT_DIR}/openapi/preprocess_spec.py
 LIB_NAME=kubernetes_asyncio
 KUBERNETES_ASYNCIO=$( cd -- "$( dirname -- "${SCRIPT_DIR}" )" &> /dev/null && pwd )/python-async-client
+
 
 gen_manual_pyproj() {
   # assume already in ${DST}
@@ -257,7 +258,7 @@ local_build() {
 gitops() {
     local tag=$1
     pushd "${KUBERNETES_ASYNCIO}"
-    git switch - || true
+    git checkout develop || true
     rm -rf *
     cp -rf ${DST}/* .
     git status
