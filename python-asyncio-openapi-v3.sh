@@ -285,13 +285,13 @@ if [ $# -eq 0 ]; then
   exit
 fi
 
-#init_dirs
-#cp_spec $1
-#transform_spec $1
+init_dirs
+cp_spec $1
+transform_spec $1
 #openapi_validate ${SPEC_COPY_DIR}
-#generate_library $1
-#pyproject $1
-#rename_output
-#check_py
-#local_build
+generate_library $1
+pyproject $1
+rename_output
+check_py
+local_build
 gitops "$1"
