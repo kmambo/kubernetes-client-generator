@@ -259,8 +259,8 @@ gitops() {
     local tag=$1
     local feature_branch=branch/$tag
     pushd "${KUBERNETES_ASYNCIO}"
-    git checkout develop
-    git branch -b $feature_branch
+    git checkout develop && git pull
+    git checkout -b $feature_branch
     rm -rf *
     cp -rf ${DST}/* .
     git status
@@ -275,6 +275,7 @@ gitops() {
 #    gh pr merge -s -d --auto
     git tag -d $tag || true
     git tag $tag
+    git push
     git push --tags
     popd
 }
@@ -284,13 +285,13 @@ if [ $# -eq 0 ]; then
   exit
 fi
 
-init_dirs
-cp_spec $1
-transform_spec $1
+#init_dirs
+#cp_spec $1
+#transform_spec $1
 #openapi_validate ${SPEC_COPY_DIR}
-generate_library $1
-pyproject $1
-rename_output
-check_py
-local_build
+#generate_library $1
+#pyproject $1
+#rename_output
+#check_py
+#local_build
 gitops "$1"
