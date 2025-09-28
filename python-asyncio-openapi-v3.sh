@@ -9,9 +9,8 @@ SPEC_DIR=${KUBERNETES_DIR}/api/openapi-spec/v3
 DST=${SCRIPT_DIR}/output
 SPEC_COPY_DIR=${DST}/spec
 PRE_PROCESS_SCRIPT=${SCRIPT_DIR}/openapi/preprocess_spec.py
-LIB_NAME=kubernetes_asyncio
+LIB_NAME=kubernetes_asyncio_pydantic
 KUBERNETES_ASYNCIO=$( cd -- "$( dirname -- "${SCRIPT_DIR}" )" &> /dev/null && pwd )/python-async-client
-
 
 gen_manual_pyproj() {
   # assume already in ${DST}
@@ -19,9 +18,9 @@ gen_manual_pyproj() {
     local version="${tag:1}"
     cat > pyproject.toml << EOF
 [project]
-name = "kubernetes_asyncio_pydantic"
+name = "$LIB_NAME"
 version = "$version"
-description = "Kubernetes client"
+description = "async Kubernetes client with Pydantic support"
 requires-python = ">=3.13,<4.0"
 authors = [
     {name = "Partho Bhowmick",email = "partho.bhowmick@icloud.com"}
@@ -33,7 +32,7 @@ keywords = ["OpenAPI", "OpenAPI-Generator", "Kubernetes"]
 dynamic = [ "dependencies" ]
 
 [tool.poetry]
-packages = [{include = "kubernetes_asyncio"}]
+packages = [{include = "$LIB_NAME"}]
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">= 7.2.1"
@@ -54,7 +53,7 @@ extension-pkg-whitelist = "pydantic"
 
 [tool.mypy]
 files = [
-  "kubernetes_asyncio",
+  "$LIB_NAME",
   #"test",  # auto-generated tests
   "tests", # hand-written tests
 ]
@@ -128,9 +127,10 @@ pyproject() {
   poetry add "urllib3 (>=1.25.3,<3.0.0)" \
       "python-dateutil (>=2.8.2)" \
       "aiohttp (>=3.8.4)" \
-      "aiohttp-retry (>= 2.8.3)" \
+      "aiohttp-retry (>=2.8.3)" \
       "pydantic (>=2,<3)" \
-      "typing-extensions (>=4.7.1)"
+      "typing-extensions (>=4.7.1)" \
+      "lazy-imports (>= 1.0.1)"
 
   poetry add -G dev \
     "pytest  (>= 7.2.1)" \
@@ -145,6 +145,7 @@ pyproject() {
     "autoflake (>= 2.3.1)"
 
   poetry lock
+  poetry update
   popd
 }
 
@@ -203,7 +204,7 @@ generate_library() {
     --library asyncio \
     --skip-validate-spec \
     --minimal-update \
-    --package-name kubernetes_asyncio \
+    --package-name $LIB_NAME \
     --additional-properties=projectName=${LIB_NAME},packageVersion=${version}  \
     --language-specific-primitives=intstr.IntOrString \
     --import-mappings=intstr.IntOrString=IntOrStr \
@@ -234,13 +235,12 @@ check_py() {
   POETRY_VIRTUALENVS_CREATE=true
   POETRY_VIRTUALENVS_IN_PROJECT=true
   pushd ${DST}
-  	# find ${LIB_NAME} -type f -name '*.py' | xargs poetry run autoflake || true
-
+    poetry sync --no-root
     poetry run  autoflake \
       --ignore-pass-statements \
       --ignore-pass-after-docstring \
       --remove-all-unused-imports \
-      -i -r kubernetes_asyncio
+      -i -r $LIB_NAME
   	poetry run isort ${LIB_NAME} || true
   	find ${LIB_NAME} -type f -name '*.py' | xargs poetry run black || true
   	poetry run flake8 ${LIB_NAME} || true
@@ -260,7 +260,7 @@ gitops() {
     local feature_branch=branch/$tag
     pushd "${KUBERNETES_ASYNCIO}"
     git checkout develop && git pull
-    git checkout -b $feature_branch
+    git checkout -b $feature_branch || git checkout $feature_branch
     rm -rf *
     cp -rf ${DST}/* .
     git status
@@ -268,12 +268,8 @@ gitops() {
     git commit -m "commiting version $tag"
     git checkout develop
     git merge $feature_branch
-#    gh pr create -B develop \
-#      -b "autocommit $tag" \
-#      -t "autocommit $tag"
-#    gh pr review -a -comment "auto-approved by bot"
-#    gh pr merge -s -d --auto
     git tag -d $tag || true
+    git push --delete origin $tag || true
     git tag $tag
     git push
     git push --tags
@@ -288,10 +284,11 @@ fi
 init_dirs
 cp_spec $1
 transform_spec $1
-#openapi_validate ${SPEC_COPY_DIR}
+openapi_validate ${SPEC_COPY_DIR}
 generate_library $1
 pyproject $1
 rename_output
 check_py
 local_build
 gitops "$1"
+
