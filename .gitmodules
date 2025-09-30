@@ -1,3 +1,6 @@
 [submodule "kubernetes"]
 	path = kubernetes
 	url = https://github.com/kubernetes/kubernetes.git
+[submodule "secrets-store-csi-driver"]
+	path = secrets-store-csi-driver
+	url = https://github.com/kubernetes-sigs/secrets-store-csi-driver.git
