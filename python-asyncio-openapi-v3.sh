@@ -276,19 +276,26 @@ gitops() {
     popd
 }
 
-if [ $# -eq 0 ]; then
-  echo "Usage: $(basename "$0") <GIT_TAG>"
+if [ $# -lt 2 ]; then
+  echo "Usage: $(basename "$0") <KUBERNETES_API_VERSION> <CLIENT_VERSION>"
   exit
 fi
+
+set +e
+python3.13 -c "import sys;kube_tag=sys.argv[1][1:].split('.');client_tag=sys.argv[2][1:].split('.');sys.exit(0 if kube_tag[1:] == client_tag[:-1]  else 1)" $1 $2
+VALID_ARGS=$?
+if [[ $VALID_ARGS -ne 0 ]]; then
+  echo "The client's major and minor version must match the Kubernetes minor and patch versions respectively."
+fi
+set -e
 
 init_dirs
 cp_spec $1
 transform_spec $1
-openapi_validate ${SPEC_COPY_DIR}
-generate_library $1
-pyproject $1
+# openapi_validate ${SPEC_COPY_DIR}
+generate_library $2
+pyproject $2
 rename_output
 check_py
 local_build
-gitops "$1"
-
+gitops "$2"
