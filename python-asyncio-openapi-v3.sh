@@ -9,8 +9,9 @@ SPEC_DIR=${KUBERNETES_DIR}/api/openapi-spec/v3
 DST=${SCRIPT_DIR}/output
 SPEC_COPY_DIR=${DST}/spec
 PRE_PROCESS_SCRIPT=${SCRIPT_DIR}/openapi/preprocess_spec.py
-LIB_NAME=kubernetes_asyncio_pydantic
-KUBERNETES_ASYNCIO=$( cd -- "$( dirname -- "${SCRIPT_DIR}" )" &> /dev/null && pwd )/python-async-client
+LIBTYPE=
+LIB_NAME=
+KUBERNETES_DIR=$( cd -- "$( dirname -- "${SCRIPT_DIR}" )" &> /dev/null && pwd )/"${LIB_NAME//_/-}"
 
 gen_manual_pyproj() {
   # assume already in ${DST}
@@ -20,7 +21,7 @@ gen_manual_pyproj() {
 [project]
 name = "$LIB_NAME"
 version = "$version"
-description = "async Kubernetes client with Pydantic support"
+description = "Async Kubernetes client with Pydantic support"
 requires-python = ">=3.13,<4.0"
 authors = [
     {name = "Partho Bhowmick",email = "partho.bhowmick@icloud.com"}
@@ -122,7 +123,7 @@ pyproject() {
   local version="${tag:1}"
   pushd $DST
 
-  gen_manual_pyproj $tag
+  #gen_manual_pyproj $tag
   poetry check && poetry lock
   poetry add "urllib3 (>=1.25.3,<3.0.0)" \
       "python-dateutil (>=2.8.2)" \
@@ -201,7 +202,7 @@ generate_library() {
   local version="${tag:1}"
 
   openapi-generator-cli generate -g python \
-    --library asyncio \
+    --library $LIBTYPE \
     --skip-validate-spec \
     --minimal-update \
     --package-name $LIB_NAME \
@@ -258,7 +259,7 @@ local_build() {
 gitops() {
     local tag=$1
     local feature_branch=branch/$tag
-    pushd "${KUBERNETES_ASYNCIO}"
+    pushd "${KUBERNETES_DIR}"
     git checkout develop && git pull
     git checkout -b $feature_branch || git checkout $feature_branch
     rm -rf *
@@ -276,26 +277,29 @@ gitops() {
     popd
 }
 
-if [ $# -lt 2 ]; then
-  echo "Usage: $(basename "$0") <KUBERNETES_API_VERSION> <CLIENT_VERSION>"
+if [ $# -lt 3 ]; then
+  echo "Usage: $(basename "$0") <KUBERNETES_API_VERSION> <CLIENT_VERSION> <LIBTYPE>"
   exit
 fi
 
 set +e
-python3.13 -c "import sys;kube_tag=sys.argv[1][1:].split('.');client_tag=sys.argv[2][1:].split('.');sys.exit(0 if kube_tag[1:] == client_tag[:-1]  else 1)" $1 $2
+python3 -c "import sys;kube_tag=sys.argv[1][1:].split('.');client_tag=sys.argv[2][1:].split('.');sys.exit(0 if kube_tag[1:] == client_tag[:-1] and sys.argv[3] in ['urllib3','asyncio', 'httpx'] else 1)" $1 $2 $3
 VALID_ARGS=$?
 if [[ $VALID_ARGS -ne 0 ]]; then
   echo "The client's major and minor version must match the Kubernetes minor and patch versions respectively."
 fi
 set -e
 
+LIBTYPE=$3
+LIB_NAME=kubernetes-client-${LIBTYPE}-pydantic
+
 init_dirs
 cp_spec $1
 transform_spec $1
 # openapi_validate ${SPEC_COPY_DIR}
-generate_library $2
-pyproject $2
+generate_library $2 $3
+pyproject $2 $3
 rename_output
 check_py
 local_build
-gitops "$2"
+#gitops "$2"
