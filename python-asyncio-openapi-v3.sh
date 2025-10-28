@@ -31,14 +31,14 @@ gen_manual_pyproj() {
 [project]
 name = "$PKG_NAME"
 version = "$version"
-description = "Async Kubernetes client with Pydantic support"
+description = "$description"
 requires-python = ">=3.13,<4.0"
 authors = [
     {name = "Partho Bhowmick",email = "partho.bhowmick@icloud.com"}
 ]
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/kmambo/kubernetes-pydantic-asyncio-client"
+repository = "https://github.com/kmambo/kubernetes-pydantic-${LIBTYPE}-client"
 keywords = ["OpenAPI", "OpenAPI-Generator", "Kubernetes"]
 dynamic = [ "dependencies" ]
 
@@ -133,7 +133,7 @@ pyproject() {
   local version="${tag:1}"
   pushd $DST
 
-  #gen_manual_pyproj $tag
+  gen_manual_pyproj $tag
   poetry check && poetry lock
 
     if [[ $LIBTYPE == "urllib3" ]]; then
@@ -158,6 +158,7 @@ pyproject() {
         "pyright (>= 1.1.385)" \
         "autoflake (>= 2.3.1)"
     elif [[ $LIBTYPE == "httpx" ]]; then
+      echo ""
       # TODO
     else  # assuming asyncio
       poetry add "urllib3 (>=1.25.3,<3.0.0)" \
@@ -313,7 +314,6 @@ gitops() {
 
 cp_config() {
   cp -R ${SCRIPT_DIR}/base/$1 ${DST}/${PKG_NAME}
-
 }
 
 if [ $# -lt 3 ]; then
@@ -331,7 +331,8 @@ set -e
 
 LIBTYPE=$3
 PKG_NAME=kubernetes-client-${LIBTYPE}-pydantic
-LIB_NAME="${LIB_NAME//-/_}"
+LIB_NAME=kubernetes
+# LIB_NAME="${PKG_NAME//-/_}"
 KUBERNETES_LIB_DIR=$( cd -- "$( dirname -- "${SCRIPT_DIR}" )" &> /dev/null && pwd )/"${PKG_NAME}"
 
 init_dirs
