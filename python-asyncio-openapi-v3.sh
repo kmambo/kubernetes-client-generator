@@ -313,7 +313,7 @@ gitops() {
 }
 
 cp_config() {
-  cp -R ${SCRIPT_DIR}/base/$1 ${DST}/${PKG_NAME}
+  cp -R ${SCRIPT_DIR}/base/$1 ${DST}/${LIB_NAME}
 }
 
 if [ $# -lt 3 ]; then
