@@ -6,5 +6,6 @@
 python-client/
 /python-async-client/
 /output*/
+__pycache__/
 *.log
 
