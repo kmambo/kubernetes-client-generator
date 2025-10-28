@@ -43,7 +43,7 @@ keywords = ["OpenAPI", "OpenAPI-Generator", "Kubernetes"]
 dynamic = [ "dependencies" ]
 
 [tool.poetry]
-packages = [{include = "$LIB_NAME"}]
+packages = [{include = "$LIB_NAME", from = "src"}]
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">= 7.2.1"
@@ -64,9 +64,17 @@ extension-pkg-whitelist = "pydantic"
 
 [tool.mypy]
 files = [
-  "$LIB_NAME",
+  "src/$LIB_NAME",
   #"test",  # auto-generated tests
   "tests", # hand-written tests
+]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+    "integration",
 ]
 # TODO: enable "strict" once all these individual checks are passing
 # strict = true
@@ -246,22 +254,26 @@ generate_library() {
     --language-specific-primitives=intstr.IntOrString \
     --import-mappings=intstr.IntOrString=IntOrStr \
     --input-spec-root-directory ${SPEC_COPY_DIR} -o ${DST}
+
+  mv ${DST}/${LIB_NAME} ${DST}/src/${LIB_NAME}
 }
 
 rename_output() {
   # I am on MacOS
   local SED=/usr/local/bin/gsed
-  local LIB_PATH="${DST}/${LIB_NAME}"
+  local LIB_PATH="${DST}/src/${LIB_NAME}"
   # fix imports
   find "${LIB_PATH}/api" -type f -name *.py \
     -exec ${SED} -i "s/from ${LIB_NAME}\.api\./from \./g" {} +
   find "${LIB_PATH}/models" -type f -name *.py \
     -exec ${SED} -i "s/from ${LIB_NAME}\.models\./from \./g" {} +
+  find "${LIB_PATH}/config" -type f -name *.py \
+    -exec ${SED} -i "s/from ${LIB_NAME}\.client\./from ${LIB_NAME}\.api_client\./g" {} +
 }
 
 init_dirs() {
-  mkdir -p ${DST}
-  rm -rf ${DST}/* ${DST}/.*
+  rm -rf ${DST}/* ${DST}/.* || true
+  mkdir -p ${DST}/src
   mkdir -p ${SPEC_COPY_DIR}
 }
 
@@ -276,11 +288,11 @@ check_py() {
       --ignore-pass-statements \
       --ignore-pass-after-docstring \
       --remove-all-unused-imports \
-      -i -r $LIB_NAME
-  	poetry run isort ${LIB_NAME} || true
-  	find ${LIB_NAME} -type f -name '*.py' | xargs poetry run black || true
-  	poetry run flake8 ${LIB_NAME} || true
-  	poetry run mypy ${LIB_NAME} || true
+      -i -r src/$LIB_NAME
+  	poetry run isort src/${LIB_NAME} || true
+  	find src/${LIB_NAME} -type f -name '*.py' | xargs poetry run black || true
+  	poetry run flake8 src/${LIB_NAME} || true
+  	poetry run mypy src/${LIB_NAME} || true
   	poetry run pytest
   popd
 }
@@ -313,7 +325,8 @@ gitops() {
 }
 
 cp_config() {
-  cp -R ${SCRIPT_DIR}/base/$1 ${DST}/${LIB_NAME}
+  mkdir -p ${DST}/src/${LIB_NAME}/config
+  cp -R ${SCRIPT_DIR}/base/$1/ ${DST}/src/${LIB_NAME}
 }
 
 if [ $# -lt 3 ]; then
@@ -335,17 +348,16 @@ LIB_NAME=kubernetes
 # LIB_NAME="${PKG_NAME//-/_}"
 KUBERNETES_LIB_DIR=$( cd -- "$( dirname -- "${SCRIPT_DIR}" )" &> /dev/null && pwd )/"${PKG_NAME}"
 
-init_dirs
-cp_spec $1
-transform_spec $1
+#init_dirs
+#cp_spec $1
+#transform_spec $1
 # openapi_validate ${SPEC_COPY_DIR}
-generate_library $2 $3
-cp_config $LIBTYPE
-pyproject $2 $3
+#generate_library $2 $3
+#cp_config $LIBTYPE
+#pyproject $2 $3
 rename_output
-check_py
 exit
+check_py
 local_build
 #gitops "$2"
-
 }

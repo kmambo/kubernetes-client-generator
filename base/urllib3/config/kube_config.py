@@ -30,7 +30,7 @@ import urllib3
 import yaml
 from requests_oauthlib import OAuth2Session
 
-from kubernetes.client import ApiClient, Configuration
+from ..client import ApiClient, Configuration
 from kubernetes.config.exec_provider import ExecProvider
 
 from .config_exception import ConfigException

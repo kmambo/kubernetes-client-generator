@@ -15,7 +15,7 @@
 import datetime
 import os
 
-from kubernetes.client import Configuration
+from ..client import Configuration
 
 from .config_exception import ConfigException
 
