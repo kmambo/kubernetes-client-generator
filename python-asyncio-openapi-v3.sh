@@ -11,15 +11,25 @@ SPEC_COPY_DIR=${DST}/spec
 PRE_PROCESS_SCRIPT=${SCRIPT_DIR}/openapi/preprocess_spec.py
 LIBTYPE=
 LIB_NAME=
-KUBERNETES_DIR=$( cd -- "$( dirname -- "${SCRIPT_DIR}" )" &> /dev/null && pwd )/"${LIB_NAME//_/-}"
+PKG_NAME=
+KUBERNETES_LIB_DIR=
 
 gen_manual_pyproj() {
   # assume already in ${DST}
     local tag=$1
     local version="${tag:1}"
+    local description=
+    if [[ $LIBTYPE == "urllib3" ]]; then
+      description="Synchronous Kubernetes client with Pydantic support"
+    elif [[ $LIBTYPE == "httpx" ]]; then
+      description="Sync/Async Kubernetes client with Pydantic support"
+    else  # assuming asyncio
+      description="Asynchronous Kubernetes client with Pydantic support"
+    fi
+
     cat > pyproject.toml << EOF
 [project]
-name = "$LIB_NAME"
+name = "$PKG_NAME"
 version = "$version"
 description = "Async Kubernetes client with Pydantic support"
 requires-python = ">=3.13,<4.0"
@@ -125,25 +135,50 @@ pyproject() {
 
   #gen_manual_pyproj $tag
   poetry check && poetry lock
-  poetry add "urllib3 (>=1.25.3,<3.0.0)" \
-      "python-dateutil (>=2.8.2)" \
-      "aiohttp (>=3.8.4)" \
-      "aiohttp-retry (>=2.8.3)" \
-      "pydantic (>=2,<3)" \
-      "typing-extensions (>=4.7.1)" \
-      "lazy-imports (>= 1.0.1)"
 
-  poetry add -G dev \
-    "pytest  (>= 7.2.1)" \
-    "pytest-cov (>= 2.8.1)" \
-    "tox (>= 3.9.0)" \
-    "types-python-dateutil (>= 2.8.19.14)" \
-    "mypy (>= 1.5)" \
-    "flake8 (>= 4.0.0)" \
-    "isort (>= 6.0.1)" \
-    "black (>= 25.1.0)" \
-    "pyright (>= 1.1.385)" \
-    "autoflake (>= 2.3.1)"
+    if [[ $LIBTYPE == "urllib3" ]]; then
+      poetry add "urllib3 (>=1.25.3,<3.0.0)" \
+          "python-dateutil (>=2.8.2)" \
+          "pydantic (>=2,<3)" \
+          "typing-extensions (>=4.7.1)" \
+          "lazy-imports (>= 1.0.1)" \
+          "oauthlib (>=3.3.1,<4.0.0)" \
+          "pyyaml(>= 6.0.0,<7.0.0)" \
+          "requests_oauthlib(>=2.0.0,<3.0.0)" \
+          "kubernetes_validate(>=1.34.0,<2.0.0)"
+      poetry add -G dev \
+        "pytest  (>= 7.2.1)" \
+        "pytest-cov (>= 2.8.1)" \
+        "tox (>= 3.9.0)" \
+        "types-python-dateutil (>= 2.8.19.14)" \
+        "mypy (>= 1.5)" \
+        "flake8 (>= 4.0.0)" \
+        "isort (>= 6.0.1)" \
+        "black (>= 25.1.0)" \
+        "pyright (>= 1.1.385)" \
+        "autoflake (>= 2.3.1)"
+    elif [[ $LIBTYPE == "httpx" ]]; then
+      # TODO
+    else  # assuming asyncio
+      poetry add "urllib3 (>=1.25.3,<3.0.0)" \
+          "python-dateutil (>=2.8.2)" \
+          "aiohttp (>=3.8.4)" \
+          "aiohttp-retry (>=2.8.3)" \
+          "pydantic (>=2,<3)" \
+          "typing-extensions (>=4.7.1)" \
+          "lazy-imports (>= 1.0.1)"
+      poetry add -G dev \
+        "pytest  (>= 7.2.1)" \
+        "pytest-cov (>= 2.8.1)" \
+        "tox (>= 3.9.0)" \
+        "types-python-dateutil (>= 2.8.19.14)" \
+        "mypy (>= 1.5)" \
+        "flake8 (>= 4.0.0)" \
+        "isort (>= 6.0.1)" \
+        "black (>= 25.1.0)" \
+        "pyright (>= 1.1.385)" \
+        "autoflake (>= 2.3.1)"
+    fi
 
   poetry lock
   poetry update
@@ -172,7 +207,7 @@ cp_spec() {
   local tag=$1
   mkdir -p ${SPEC_COPY_DIR}
   pushd ${KUBERNETES_DIR}
-  git pull
+  git checkout master && git pull
   trap "popd" SIGINT SIGTERM SIGHUP SIGQUIT SIGABRT
   git checkout $tag
   cp ${SPEC_DIR}/*.json ${SPEC_COPY_DIR}
@@ -221,7 +256,6 @@ rename_output() {
     -exec ${SED} -i "s/from ${LIB_NAME}\.api\./from \./g" {} +
   find "${LIB_PATH}/models" -type f -name *.py \
     -exec ${SED} -i "s/from ${LIB_NAME}\.models\./from \./g" {} +
-
 }
 
 init_dirs() {
@@ -259,7 +293,7 @@ local_build() {
 gitops() {
     local tag=$1
     local feature_branch=branch/$tag
-    pushd "${KUBERNETES_DIR}"
+    pushd "${KUBERNETES_LIB_DIR}"
     git checkout develop && git pull
     git checkout -b $feature_branch || git checkout $feature_branch
     rm -rf *
@@ -277,6 +311,11 @@ gitops() {
     popd
 }
 
+cp_config() {
+  cp -R ${SCRIPT_DIR}/base/$1 ${DST}/${PKG_NAME}
+
+}
+
 if [ $# -lt 3 ]; then
   echo "Usage: $(basename "$0") <KUBERNETES_API_VERSION> <CLIENT_VERSION> <LIBTYPE>"
   exit
@@ -291,15 +330,21 @@ fi
 set -e
 
 LIBTYPE=$3
-LIB_NAME=kubernetes-client-${LIBTYPE}-pydantic
+PKG_NAME=kubernetes-client-${LIBTYPE}-pydantic
+LIB_NAME="${LIB_NAME//-/_}"
+KUBERNETES_LIB_DIR=$( cd -- "$( dirname -- "${SCRIPT_DIR}" )" &> /dev/null && pwd )/"${PKG_NAME}"
 
 init_dirs
 cp_spec $1
 transform_spec $1
 # openapi_validate ${SPEC_COPY_DIR}
 generate_library $2 $3
+cp_config $LIBTYPE
 pyproject $2 $3
 rename_output
 check_py
+exit
 local_build
 #gitops "$2"
+
+}
