@@ -348,16 +348,14 @@ LIB_NAME=kubernetes
 # LIB_NAME="${PKG_NAME//-/_}"
 KUBERNETES_LIB_DIR=$( cd -- "$( dirname -- "${SCRIPT_DIR}" )" &> /dev/null && pwd )/"${PKG_NAME}"
 
-#init_dirs
-#cp_spec $1
-#transform_spec $1
+init_dirs
+cp_spec $1
+transform_spec $1
 # openapi_validate ${SPEC_COPY_DIR}
-#generate_library $2 $3
-#cp_config $LIBTYPE
-#pyproject $2 $3
+generate_library $2 $3
+cp_config $LIBTYPE
+pyproject $2 $3
 rename_output
-exit
 check_py
 local_build
 #gitops "$2"
-}

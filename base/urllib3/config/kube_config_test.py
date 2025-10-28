@@ -26,7 +26,7 @@ from collections import namedtuple
 from unittest import mock
 import yaml
 
-from kubernetes.client import Configuration
+from kubernetes.configuration import Configuration
 
 from .config_exception import ConfigException
 from .dateutil import UTC, format_rfc3339, parse_rfc3339
@@ -1455,85 +1455,6 @@ class TestKubeConfigLoader(BaseTestCase):
             config_dict=self.TEST_KUBE_CONFIG,
             active_context="non_existing_user").load_and_set(actual)
         self.assertEqual(expected, actual)
-
-    @mock.patch('kubernetes.config.kube_config.ExecProvider.run')
-    def test_user_exec_auth(self, mock):
-        token = "dummy"
-        mock.return_value = {
-            "token": token
-        }
-        expected = FakeConfig(host=TEST_HOST, api_key={
-                              "authorization": BEARER_TOKEN_FORMAT % token})
-        actual = FakeConfig()
-        KubeConfigLoader(
-            config_dict=self.TEST_KUBE_CONFIG,
-            active_context="exec_cred_user").load_and_set(actual)
-        self.assertEqual(expected, actual)
-
-    @mock.patch('kubernetes.config.kube_config.ExecProvider.run')
-    def test_user_exec_auth_with_expiry(self, mock):
-        expired_token = "expired"
-        current_token = "current"
-        mock.side_effect = [
-            {
-                "token": expired_token,
-                "expirationTimestamp": format_rfc3339(DATETIME_EXPIRY_PAST)
-            },
-            {
-                "token": current_token,
-                "expirationTimestamp": format_rfc3339(DATETIME_EXPIRY_FUTURE)
-            }
-        ]
-
-        fake_config = FakeConfig()
-        self.assertIsNone(fake_config.refresh_api_key_hook)
-
-        KubeConfigLoader(
-            config_dict=self.TEST_KUBE_CONFIG,
-            active_context="exec_cred_user").load_and_set(fake_config)
-        # The kube config should use the first token returned from the
-        # exec provider.
-        self.assertEqual(fake_config.api_key["authorization"],
-                         BEARER_TOKEN_FORMAT % expired_token)
-        # Should now be populated with a method to refresh expired tokens.
-        self.assertIsNotNone(fake_config.refresh_api_key_hook)
-        # Refresh the token; the kube config should be updated.
-        fake_config.refresh_api_key_hook(fake_config)
-        self.assertEqual(fake_config.api_key["authorization"],
-                         BEARER_TOKEN_FORMAT % current_token)
-
-    @mock.patch('kubernetes.config.kube_config.ExecProvider.run')
-    def test_user_exec_auth_certificates(self, mock):
-        mock.return_value = {
-            "clientCertificateData": TEST_CLIENT_CERT,
-            "clientKeyData": TEST_CLIENT_KEY,
-        }
-        expected = FakeConfig(
-            host=TEST_SSL_HOST,
-            cert_file=self._create_temp_file(TEST_CLIENT_CERT),
-            key_file=self._create_temp_file(TEST_CLIENT_KEY),
-            ssl_ca_cert=self._create_temp_file(TEST_CERTIFICATE_AUTH),
-            verify_ssl=True)
-        actual = FakeConfig()
-        KubeConfigLoader(
-            config_dict=self.TEST_KUBE_CONFIG,
-            active_context="exec_cred_user_certificate").load_and_set(actual)
-        self.assertEqual(expected, actual)
-
-    @mock.patch('kubernetes.config.kube_config.ExecProvider.run', autospec=True)
-    def test_user_exec_cwd(self, mock):
-        capture = {}
-
-        def capture_cwd(exec_provider):
-            capture['cwd'] = exec_provider.cwd
-        mock.side_effect = capture_cwd
-
-        expected = "/some/random/path"
-        KubeConfigLoader(
-            config_dict=self.TEST_KUBE_CONFIG,
-            active_context="exec_cred_user",
-            config_base_path=expected).load_and_set(FakeConfig())
-        self.assertEqual(expected, capture['cwd'])
 
     def test_user_cmd_path(self):
         A = namedtuple('A', ['token', 'expiry'])

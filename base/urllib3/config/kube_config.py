@@ -30,8 +30,7 @@ import urllib3
 import yaml
 from requests_oauthlib import OAuth2Session
 
-from ..client import ApiClient, Configuration
-from kubernetes.config.exec_provider import ExecProvider
+from kubernetes.api_client import ApiClient, Configuration
 
 from .config_exception import ConfigException
 from .dateutil import UTC, format_rfc3339, parse_rfc3339
@@ -298,8 +297,6 @@ class KubeConfigLoader(object):
             return
         if self._load_user_token():
             return
-        if self._load_from_exec_plugin():
-            return
         self._load_user_pass_token()
 
     def _load_auth_provider_token(self):
@@ -479,43 +476,6 @@ class KubeConfigLoader(object):
 
         provider['config'].value['id-token'] = refresh['id_token']
         provider['config'].value['refresh-token'] = refresh['refresh_token']
-
-    def _load_from_exec_plugin(self):
-        if 'exec' not in self._user:
-            return
-        try:
-            base_path = self._get_base_path(self._cluster.path)
-            status = ExecProvider(self._user['exec'], base_path, self._cluster).run()
-            if 'token' in status:
-                self.token = "Bearer %s" % status['token']
-            elif 'clientCertificateData' in status:
-                # https://kubernetes.io/docs/reference/access-authn-authz/authentication/#input-and-output-formats
-                # Plugin has provided certificates instead of a token.
-                if 'clientKeyData' not in status:
-                    logging.error('exec: missing clientKeyData field in '
-                                  'plugin output')
-                    return None
-                self.cert_file = FileOrData(
-                    status, None,
-                    data_key_name='clientCertificateData',
-                    file_base_path=base_path,
-                    base64_file_content=False,
-                    temp_file_path=self._temp_file_path).as_file()
-                self.key_file = FileOrData(
-                    status, None,
-                    data_key_name='clientKeyData',
-                    file_base_path=base_path,
-                    base64_file_content=False,
-                    temp_file_path=self._temp_file_path).as_file()
-            else:
-                logging.error('exec: missing token or clientCertificateData '
-                              'field in plugin output')
-                return None
-            if 'expirationTimestamp' in status:
-                self.expiry = parse_rfc3339(status['expirationTimestamp'])
-            return True
-        except Exception as e:
-            logging.error(str(e))
 
     def _load_user_token(self):
         base_path = self._get_base_path(self._user.path)
