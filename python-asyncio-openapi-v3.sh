@@ -6,8 +6,8 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 KUBERNETES_DIR="${SCRIPT_DIR}/kubernetes"
 PYLINT_TEMPLATE_DIR=${SCRIPT_DIR}/pylint-templates
 SPEC_DIR=${KUBERNETES_DIR}/api/openapi-spec/v3
-DST=${SCRIPT_DIR}/output
-SPEC_COPY_DIR=${DST}/spec
+BUILD_DIR=${SCRIPT_DIR}/output
+SPEC_COPY_DIR=${BUILD_DIR}/spec
 PRE_PROCESS_SCRIPT=${SCRIPT_DIR}/openapi/preprocess_spec.py
 LIBTYPE=
 LIB_NAME=
@@ -15,7 +15,7 @@ PKG_NAME=
 KUBERNETES_LIB_DIR=
 
 gen_manual_pyproj() {
-  # assume already in ${DST}
+  # assume already in ${BUILD_DIR}
     local tag=$1
     local version="${tag:1}"
     local description=
@@ -38,7 +38,7 @@ authors = [
 ]
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/kmambo/kubernetes-pydantic-${LIBTYPE}-client"
+repository = "https://github.com/kmambo/${PKG_NAME}"
 keywords = ["OpenAPI", "OpenAPI-Generator", "Kubernetes"]
 dynamic = [ "dependencies" ]
 
@@ -139,7 +139,7 @@ EOF
 pyproject() {
   local tag=$1
   local version="${tag:1}"
-  pushd $DST
+  pushd $BUILD_DIR
 
   gen_manual_pyproj $tag
   poetry check && poetry lock
@@ -253,15 +253,15 @@ generate_library() {
     --additional-properties=projectName=${LIB_NAME},packageVersion=${version}  \
     --language-specific-primitives=intstr.IntOrString \
     --import-mappings=intstr.IntOrString=IntOrStr \
-    --input-spec-root-directory ${SPEC_COPY_DIR} -o ${DST}
+    --input-spec-root-directory ${SPEC_COPY_DIR} -o ${BUILD_DIR}
 
-  mv ${DST}/${LIB_NAME} ${DST}/src/${LIB_NAME}
+  mv ${BUILD_DIR}/${LIB_NAME} ${BUILD_DIR}/src/${LIB_NAME}
 }
 
 rename_output() {
   # I am on MacOS
   local SED=/usr/local/bin/gsed
-  local LIB_PATH="${DST}/src/${LIB_NAME}"
+  local LIB_PATH="${BUILD_DIR}/src/${LIB_NAME}"
   # fix imports
   find "${LIB_PATH}/api" -type f -name *.py \
     -exec ${SED} -i "s/from ${LIB_NAME}\.api\./from \./g" {} +
@@ -272,17 +272,17 @@ rename_output() {
 }
 
 init_dirs() {
-  rm -rf ${DST}/* ${DST}/.* || true
-  mkdir -p ${DST}/src
+  rm -rf ${BUILD_DIR}/* ${BUILD_DIR}/.* || true
+  mkdir -p ${BUILD_DIR}/src
   mkdir -p ${SPEC_COPY_DIR}
 }
 
 check_py() {
-  cp ${PYLINT_TEMPLATE_DIR}/.flake8 ${DST}
-  cp ${PYLINT_TEMPLATE_DIR}/mypy.ini ${DST}
+  cp ${PYLINT_TEMPLATE_DIR}/.flake8 ${BUILD_DIR}
+  cp ${PYLINT_TEMPLATE_DIR}/mypy.ini ${BUILD_DIR}
   POETRY_VIRTUALENVS_CREATE=true
   POETRY_VIRTUALENVS_IN_PROJECT=true
-  pushd ${DST}
+  pushd ${BUILD_DIR}
     poetry sync --no-root
     poetry run  autoflake \
       --ignore-pass-statements \
@@ -293,12 +293,13 @@ check_py() {
   	find src/${LIB_NAME} -type f -name '*.py' | xargs poetry run black || true
   	poetry run flake8 src/${LIB_NAME} || true
   	poetry run mypy src/${LIB_NAME} || true
+  	poetry sync
   	poetry run pytest
   popd
 }
 
 local_build() {
-  pushd ${DST}
+  pushd ${BUILD_DIR}
   poetry build
   popd
 }
@@ -307,14 +308,15 @@ gitops() {
     local tag=$1
     local feature_branch=branch/$tag
     pushd "${KUBERNETES_LIB_DIR}"
-    git checkout develop && git pull
+    git checkout main && git pull --tags
     git checkout -b $feature_branch || git checkout $feature_branch
     rm -rf *
-    cp -rf ${DST}/* .
+    cp -rf ${BUILD_DIR}/* .
+    cp -f ${BUILD_DIR}/.gitignore .
     git status
     git add -A
     git commit -m "commiting version $tag"
-    git checkout develop
+    git checkout main
     git merge $feature_branch
     git tag -d $tag || true
     git push --delete origin $tag || true
@@ -325,8 +327,8 @@ gitops() {
 }
 
 cp_config() {
-  mkdir -p ${DST}/src/${LIB_NAME}/config
-  cp -R ${SCRIPT_DIR}/base/$1/ ${DST}/src/${LIB_NAME}
+  mkdir -p ${BUILD_DIR}/src/${LIB_NAME}/config
+  cp -R ${SCRIPT_DIR}/base/$1/ ${BUILD_DIR}/src/${LIB_NAME}
 }
 
 if [ $# -lt 3 ]; then
@@ -345,9 +347,7 @@ set -e
 LIBTYPE=$3
 PKG_NAME=kubernetes-client-${LIBTYPE}-pydantic
 LIB_NAME=kubernetes
-# LIB_NAME="${PKG_NAME//-/_}"
 KUBERNETES_LIB_DIR=$( cd -- "$( dirname -- "${SCRIPT_DIR}" )" &> /dev/null && pwd )/"${PKG_NAME}"
-
 init_dirs
 cp_spec $1
 transform_spec $1
@@ -358,4 +358,4 @@ pyproject $2 $3
 rename_output
 check_py
 local_build
-#gitops "$2"
+gitops "$2"
