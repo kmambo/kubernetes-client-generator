@@ -29,7 +29,7 @@ gen_manual_pyproj() {
 
     cat > pyproject.toml << EOF
 [project]
-name = "$PKG_NAME"
+name = "${PKG_NAME//-/_}"
 version = "$version"
 description = "$description"
 requires-python = ">=3.13,<4.0"
@@ -306,22 +306,27 @@ local_build() {
 
 gitops() {
     local tag=$1
-    local feature_branch=branch/$tag
+    local short_uuid=$(python3 -c 'import uuid;print(str(uuid.uuid4())[:8])')
+    local feature_branch=branch/{$tag}-{$short_uuid}
     pushd "${KUBERNETES_LIB_DIR}"
     git checkout main && git pull --tags
     git checkout -b $feature_branch || git checkout $feature_branch
     rm -rf *
     cp -rf ${BUILD_DIR}/* .
-    cp -f ${BUILD_DIR}/.gitignore .
+
     git status
     git add -A
     git commit -m "commiting version $tag"
+    git push
+    gh pr create -f --base main
+#    git checkout main
+#    git merge $feature_branch
+  gh pr merge --auto -d -s
     git checkout main
-    git merge $feature_branch
+    git pull --tags
     git tag -d $tag || true
     git push --delete origin $tag || true
     git tag $tag
-    git push
     git push --tags
     popd
 }
@@ -348,14 +353,14 @@ LIBTYPE=$3
 PKG_NAME=kubernetes-client-${LIBTYPE}-pydantic
 LIB_NAME=kubernetes
 KUBERNETES_LIB_DIR=$( cd -- "$( dirname -- "${SCRIPT_DIR}" )" &> /dev/null && pwd )/"${PKG_NAME}"
-init_dirs
-cp_spec $1
-transform_spec $1
+#init_dirs
+#cp_spec $1
+#transform_spec $1
 # openapi_validate ${SPEC_COPY_DIR}
-generate_library $2 $3
-cp_config $LIBTYPE
-pyproject $2 $3
-rename_output
-check_py
-local_build
+#generate_library $2 $3
+#cp_config $LIBTYPE
+#pyproject $2 $3
+#rename_output
+#check_py
+#local_build
 gitops "$2"
