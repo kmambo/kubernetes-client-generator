@@ -307,7 +307,7 @@ local_build() {
 gitops() {
     local tag=$1
     local short_uuid=$(python3 -c 'import uuid;print(str(uuid.uuid4())[:8])')
-    local feature_branch=branch/{$tag}-{$short_uuid}
+    local feature_branch=branch/${tag}-${short_uuid}
     pushd "${KUBERNETES_LIB_DIR}"
     git checkout main && git pull --tags
     git checkout -b $feature_branch || git checkout $feature_branch
@@ -319,6 +319,8 @@ gitops() {
     git commit -m "commiting version $tag"
     git push
     gh pr create -f --base main
+    popd
+    exit 0
 #    git checkout main
 #    git merge $feature_branch
   gh pr merge --auto -d -s
@@ -356,7 +358,7 @@ KUBERNETES_LIB_DIR=$( cd -- "$( dirname -- "${SCRIPT_DIR}" )" &> /dev/null && pw
 #init_dirs
 #cp_spec $1
 #transform_spec $1
-# openapi_validate ${SPEC_COPY_DIR}
+#openapi_validate ${SPEC_COPY_DIR}
 #generate_library $2 $3
 #cp_config $LIBTYPE
 #pyproject $2 $3
